@@ -1,0 +1,396 @@
+use axum::{
+    extract::State,
+    routing::{get, post},
+    Json, Router,
+};
+use clap::{Parser, Subcommand};
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::sync::Arc;
+
+use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password};
+
+#[derive(Parser)]
+#[command(name = "bastion")]
+#[command(about = "Bastion Protocol CLI - Protect AI Agents", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Login to Bastion (get API key)
+    Login,
+    /// Initialize agent protection in current directory
+    Init,
+    /// Start the local supervisor proxy
+    Start {
+        /// Port to listen on
+        #[arg(short, long, default_value_t = 8080)]
+        port: u16,
+        /// Command to run (e.g., "python agent.py")
+        #[arg(trailing_var_arg = true)]
+        command: Vec<String>,
+    },
+    /// Check connection to Bastion backend
+    Health,
+}
+
+// Configuration stored locally
+#[derive(Clone)]
+struct Config {
+    api_key: String,
+    backend_url: String,
+    agent_id: Option<String>,
+}
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
+
+    let cli = Cli::parse();
+
+    match &cli.command {
+        Commands::Login => {
+            handle_login().await;
+        }
+        Commands::Init => {
+            handle_init().await;
+        }
+        Commands::Start { port, command } => {
+            if command.is_empty() {
+                println!("❌ Error: No command specified");
+                println!("Usage: bastion start -- python agent.py");
+                std::process::exit(1);
+            }
+            handle_start(*port, command).await;
+        }
+        Commands::Health => {
+            handle_health().await;
+        }
+    }
+}
+
+async fn handle_login() {
+    println!("🛡️  Bastion Protocol Login\n");
+
+    let email: String = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt("Email")
+        .interact_text()
+        .unwrap();
+
+    let password = Password::with_theme(&ColorfulTheme::default())
+        .with_prompt("Password")
+        .interact()
+        .unwrap();
+
+    println!("\n🔄 Authenticating...");
+
+    // For MVP: Accept any credentials and generate a demo API key
+    // TODO: In production, call backend /auth/login endpoint
+    let api_key = format!("bst_demo_{}", uuid::Uuid::new_v4().to_string().replace("-", "")[..16].to_string());
+
+    // Save to config file
+    let config_path = dirs::home_dir()
+        .unwrap()
+        .join(".bastion")
+        .join("config.json");
+
+    std::fs::create_dir_all(config_path.parent().unwrap()).ok();
+
+    let config = serde_json::json!({
+        "email": email,
+        "api_key": api_key,
+        "backend_url": "http://localhost:3000/v1"
+    });
+
+    std::fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+    println!("✅ Login successful!");
+    println!("\nYour API Key: {}", api_key);
+    println!("Config saved to: {:?}", config_path);
+    println!("\nNext step: Run `bastion init` in your agent directory");
+}
+
+async fn handle_init() {
+    println!("🛡️  Bastion Protocol Setup\n");
+
+    // Check if logged in
+    let config_path = dirs::home_dir()
+        .unwrap()
+        .join(".bastion")
+        .join("config.json");
+
+    if !config_path.exists() {
+        println!("❌ Not logged in. Run `bastion login` first.");
+        std::process::exit(1);
+    }
+
+    let config: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+
+    println!("Logged in as: {}\n", config["email"].as_str().unwrap());
+
+    // Interactive setup
+    let name: String = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt("Agent name")
+        .default("my-agent".into())
+        .interact_text()
+        .unwrap();
+
+    let language: String = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt("Language")
+        .default("python".into())
+        .interact_text()
+        .unwrap();
+
+    let framework: String = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt("Framework (langchain/autogpt/custom)")
+        .default("custom".into())
+        .interact_text()
+        .unwrap();
+
+    println!("\n🔄 Creating agent...");
+
+    // TODO: Call backend API to create agent
+    let agent_id = uuid::Uuid::new_v4().to_string();
+
+    // Save local agent config
+    let agent_config = serde_json::json!({
+        "agent_id": agent_id,
+        "name": name,
+        "language": language,
+        "framework": framework,
+        "created_at": chrono::Utc::now().to_rfc3339(),
+    });
+
+    std::fs::write(
+        ".bastion-agent.json",
+        serde_json::to_string_pretty(&agent_config).unwrap(),
+    )
+    .unwrap();
+
+    println!("✅ Agent created!");
+    println!("\nAgent ID: {}", agent_id);
+    println!("Config saved to: .bastion-agent.json");
+    println!("\nNext step: Run your agent with Bastion protection:");
+    println!("  bastion start -- python agent.py");
+}
+
+async fn handle_start(port: u16, command: &[String]) {
+    println!("🛡️  Starting Bastion Supervisor\n");
+
+    // Load config
+    let config = load_config();
+
+    println!("✓ Loaded configuration");
+    println!("✓ Backend: {}", config.backend_url);
+    println!("✓ Proxy listening on port: {}\n", port);
+
+    // Start proxy server
+    let app_state = Arc::new(config.clone());
+    let app = Router::new()
+        .route("/health", get(health_check))
+        .route("/authorize", post(authorize_action))
+        .with_state(app_state);
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+
+    println!("🚀 Bastion Supervisor active!");
+    println!("   Proxy: http://localhost:{}", port);
+    println!("   Dashboard: http://localhost:3001");
+    println!("\n📊 Monitoring agent actions...\n");
+
+    // Start agent in background with proxy environment
+    if !command.is_empty() {
+        tokio::spawn(start_agent(command.to_vec(), port));
+    }
+
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+
+async fn start_agent(command: Vec<String>, proxy_port: u16) {
+    // Wait a bit for proxy to start
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let program = &command[0];
+    let args = &command[1..];
+
+    println!("🤖 Launching agent: {} {}", program, args.join(" "));
+
+    let mut cmd = std::process::Command::new(program);
+    cmd.args(args)
+        .env("HTTP_PROXY", format!("http://localhost:{}", proxy_port))
+        .env("HTTPS_PROXY", format!("http://localhost:{}", proxy_port))
+        .env("BASTION_ENABLED", "true");
+
+    match cmd.spawn() {
+        Ok(mut child) => {
+            println!("✓ Agent started (PID: {:?})", child.id());
+
+            // Wait for agent to finish
+            match child.wait() {
+                Ok(status) => println!("\n🛑 Agent exited with status: {}", status),
+                Err(e) => eprintln!("\n❌ Error waiting for agent: {}", e),
+            }
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to start agent: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn handle_health() {
+    let config = load_config();
+
+    println!("🔍 Checking Bastion backend...");
+    println!("   URL: {}\n", config.backend_url);
+
+    let client = reqwest::Client::new();
+    match client
+        .get(format!("{}/../../health", config.backend_url))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                println!("✅ Backend is healthy");
+                if let Ok(body) = resp.text().await {
+                    println!("{}", body);
+                }
+            } else {
+                println!("⚠️  Backend returned status: {}", resp.status());
+            }
+        }
+        Err(e) => {
+            println!("❌ Cannot reach backend: {}", e);
+            println!("\nMake sure the backend is running:");
+            println!("  cd backend && npm run dev");
+        }
+    }
+}
+
+fn load_config() -> Config {
+    let config_path = dirs::home_dir()
+        .unwrap()
+        .join(".bastion")
+        .join("config.json");
+
+    if !config_path.exists() {
+        eprintln!("❌ Not logged in. Run `bastion login` first.");
+        std::process::exit(1);
+    }
+
+    let config: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+
+    // Try to load agent config
+    let agent_id = if let Ok(agent_config) = std::fs::read_to_string(".bastion-agent.json") {
+        let agent: serde_json::Value = serde_json::from_str(&agent_config).unwrap();
+        Some(agent["agent_id"].as_str().unwrap().to_string())
+    } else {
+        None
+    };
+
+    Config {
+        api_key: config["api_key"].as_str().unwrap().to_string(),
+        backend_url: config["backend_url"]
+            .as_str()
+            .unwrap_or("http://localhost:3000/v1")
+            .to_string(),
+        agent_id,
+    }
+}
+
+// API Handlers
+
+async fn health_check() -> &'static str {
+    "OK"
+}
+
+#[derive(Deserialize)]
+struct AuthorizeRequest {
+    action: Action,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Action {
+    #[serde(rename = "type")]
+    action_type: String,
+    details: serde_json::Value,
+}
+
+#[derive(Serialize)]
+struct AuthorizeResponse {
+    allowed: bool,
+    reason: Option<String>,
+}
+
+async fn authorize_action(
+    State(config): State<Arc<Config>>,
+    Json(payload): Json<AuthorizeRequest>,
+) -> Json<AuthorizeResponse> {
+    let client = reqwest::Client::new();
+
+    // Log the action
+    println!(
+        "[{}] {} - {:?}",
+        chrono::Utc::now().format("%H:%M:%S"),
+        payload.action.action_type,
+        payload.action.details
+    );
+
+    // Call backend API
+    let backend_payload = serde_json::json!({
+        "api_key": config.api_key,
+        "agent_id": config.agent_id,
+        "action": payload.action,
+    });
+
+    match client
+        .post(format!("{}/authorize", config.backend_url))
+        .header("X-API-Key", &config.api_key)
+        .json(&backend_payload)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                match resp.json::<AuthorizeResponse>().await {
+                    Ok(result) => {
+                        if result.allowed {
+                            println!("   ✓ ALLOWED");
+                        } else {
+                            println!("   🛑 BLOCKED: {}", result.reason.as_deref().unwrap_or("Policy violation"));
+                        }
+                        Json(result)
+                    }
+                    Err(e) => {
+                        eprintln!("   ⚠️  Error parsing response: {}", e);
+                        Json(AuthorizeResponse {
+                            allowed: true, // Fail open
+                            reason: Some("Backend response parse error".to_string()),
+                        })
+                    }
+                }
+            } else {
+                eprintln!("   ⚠️  Backend error: {}", resp.status());
+                Json(AuthorizeResponse {
+                    allowed: true, // Fail open
+                    reason: Some(format!("Backend error: {}", resp.status())),
+                })
+            }
+        }
+        Err(e) => {
+            eprintln!("   ⚠️  Cannot reach backend: {}", e);
+            Json(AuthorizeResponse {
+                allowed: true, // Fail open
+                reason: Some("Backend unreachable".to_string()),
+            })
+        }
+    }
+}

@@ -1,0 +1,251 @@
+// Bastion Protocol Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Users and Authentication
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // bcrypt hashed
+  name      String?
+
+  // API Keys for CLI/SDK authentication
+  apiKey    String   @unique @default(uuid())
+
+  // Subscription
+  tier      SubscriptionTier @default(STARTER)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  policies  Policy[]
+  actionLogs ActionLog[]
+  usageMetrics UsageMetric[]
+  agents    Agent[]
+
+  // Referral system
+  referralCode       String    @unique @default(uuid())
+  referredByCode     String?
+  firstPaymentDiscount Boolean @default(false)
+  totalReferrals     Int       @default(0)
+  activeReferrals    Int       @default(0)
+
+  coupons            Coupon[]
+  monthlyDiscounts   MonthlyDiscount[]
+  referralsMade      Referral[] @relation("Referrer")
+  referralReceived   Referral?  @relation("Referred")
+
+  @@map("users")
+}
+
+enum SubscriptionTier {
+  STARTER   // $29/mo
+  GROWTH    // $149/mo
+  PRO       // $499/mo
+  ENTERPRISE // Custom
+}
+
+// Agents (Instances being monitored)
+model Agent {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+
+  // Agent metadata
+  language    String?  // python, nodejs, etc
+  framework   String?  // langchain, autogpt, etc
+
+  // Status
+  status      AgentStatus @default(ACTIVE)
+  lastSeenAt  DateTime?
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionLogs  ActionLog[]
+
+  @@map("agents")
+}
+
+enum AgentStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+// Policies (Security Rules)
+model Policy {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+
+  // Policy type and configuration
+  type        PolicyType
+  config      Json     // Flexible JSON for different policy types
+
+  // Status
+  enabled     Boolean  @default(true)
+  priority    Int      @default(0) // Higher priority = evaluated first
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionLogs  ActionLog[]
+
+  @@map("policies")
+}
+
+enum PolicyType {
+  SPENDING_LIMIT    // Max spending per time window
+  RATE_LIMIT        // Max requests per time window
+  PATTERN_MATCH     // Regex/pattern matching on actions
+  FILE_PROTECTION   // Protect specific files/directories
+  DLP               // Data Loss Prevention (detect PII, secrets)
+  CUSTOM_WEBHOOK    // Call external API for decision
+  TIME_WINDOW       // Only allow actions during specific hours
+  ALLOWLIST         // Only allow specific actions
+  BLOCKLIST         // Block specific actions
+}
+
+// Action Logs (Audit Trail)
+model ActionLog {
+  id          String   @id @default(uuid())
+  userId      String
+  agentId     String?
+  policyId    String?
+
+  // Action details
+  actionType  String   // e.g., "http_request", "file_write", "subprocess"
+  actionData  Json     // Full action payload
+
+  // Decision
+  decision    Decision
+  reason      String?  // Why was it allowed/blocked
+
+  // Timing
+  latencyMs   Int?     // How long did evaluation take
+  timestamp   DateTime @default(now())
+
+  // Relations
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent       Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  policy      Policy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+
+  @@index([userId, timestamp])
+  @@index([agentId, timestamp])
+  @@index([decision])
+  @@map("action_logs")
+}
+
+enum Decision {
+  ALLOWED
+  BLOCKED
+  ERROR
+}
+
+// Usage Metrics (For Billing)
+model UsageMetric {
+  id            String   @id @default(uuid())
+  userId        String
+
+  // Date bucket
+  date          DateTime @db.Date
+
+  // Metrics
+  checksCount   Int      @default(0)
+  blockedCount  Int      @default(0)
+  allowedCount  Int      @default(0)
+  errorCount    Int      @default(0)
+
+  // Cost tracking
+  totalLatencyMs BigInt  @default(0)
+
+  // Relations
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("usage_metrics")
+}
+// Add this to the end of schema.prisma
+
+// Referral Coupon System
+model Coupon {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Coupon details
+  value             Float     @default(0.05)  // 5% discount
+  used              Boolean   @default(false)
+  usedAt            DateTime?
+
+  // Source tracking
+  earnedFrom        String?   // Referral ID that created this coupon
+
+  createdAt         DateTime  @default(now())
+
+  @@index([userId, used])
+  @@map("coupons")
+}
+
+model Referral {
+  id                String    @id @default(uuid())
+
+  referrerId        String
+  referrer          User      @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+
+  referredId        String    @unique
+  referred          User      @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
+
+  status            ReferralStatus @default(PENDING)
+
+  signupAt          DateTime  @default(now())
+  firstPaymentAt    DateTime?
+  lastActiveAt      DateTime?
+  cancelledAt       DateTime?
+
+  @@index([referrerId, status])
+  @@map("referrals")
+}
+
+enum ReferralStatus {
+  PENDING       // Signed up, not paid yet
+  ACTIVE        // Paying customer
+  CHURNED       // Cancelled
+}
+
+model MonthlyDiscount {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Month tracking
+  monthStart        DateTime  // First day of month 00:00:00
+  monthEnd          DateTime  // Last day of month 23:59:59
+
+  // Usage (max 10 coupons = 50% per month)
+  couponsUsed       Int       @default(0)  // Max 10 per month
+  discountApplied   Float     @default(0)  // Max 0.50 (50%)
+
+  createdAt         DateTime  @default(now())
+
+  @@unique([userId, monthStart])
+  @@map("monthly_discounts")
+}
