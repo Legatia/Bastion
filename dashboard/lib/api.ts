@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:3000/v1';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/v1';
 
 // In production/real integration, this comes from ENV or Auth Context
 // For now we use a placeholder or read from a local .env file
