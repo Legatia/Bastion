@@ -8,7 +8,10 @@ import { Shield, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
 
+import { useRouter } from 'next/router';
+
 export default function Policies() {
+    const router = useRouter();
     const [spendLimit, setSpendLimit] = useState('100');
     const [whitelist, setWhitelist] = useState(['api.openai.com']);
     const [isSaved, setIsSaved] = useState(false);
@@ -16,6 +19,12 @@ export default function Policies() {
 
     // Load initial policy
     useEffect(() => {
+        const key = localStorage.getItem('bastion_api_key');
+        if (!key) {
+            router.push('/login');
+            return;
+        }
+
         // For MVP, we just fetch one 'SPENDING_LIMIT' policy if check exists
         api.get<{ policies: any[] }>('/policies')
             .then(data => {

@@ -42,9 +42,21 @@ export default function Navbar() {
                 background: 'rgba(255,255,255,0.03)', padding: '0.5rem 1.5rem',
                 borderRadius: '999px', border: '1px solid rgba(255,255,255,0.05)'
             }}>
-                <NavLink href="/analytics" label="Analytics" active={isActive('/analytics')} />
-                <NavLink href="/policies" label="Policies" active={isActive('/policies')} />
-                <NavLink href="/billing" label="Billing" active={isActive('/billing')} />
+                <Link href="/analytics" style={{ color: isActive('/analytics') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/analytics') ? '600' : '400' }}>
+                    Analytics
+                </Link>
+                <Link href="/policies" style={{ color: isActive('/policies') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/policies') ? '600' : '400' }}>
+                    Policies
+                </Link>
+                <Link href="/logs" style={{ color: isActive('/logs') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/logs') ? '600' : '400' }}>
+                    Logs
+                </Link>
+                <Link href="/billing" style={{ color: isActive('/billing') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/billing') ? '600' : '400' }}>
+                    Billing
+                </Link>
+                <Link href="/profile" style={{ color: isActive('/profile') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/profile') ? '600' : '400' }}>
+                    Profile
+                </Link>
             </div>
 
             {/* Right Actions */}

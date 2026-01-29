@@ -20,13 +20,22 @@ const ENCRYPTED_LOGS = [
     { id: 4, time: 'Yesterday', type: 'Unknown Destination', encrypted: 'aes256:9z8y7x...', decrypted: 'Blocked: Endpoint not in Allowlist' },
 ];
 
+import { useRouter } from 'next/router';
+
 export default function Analytics() {
+    const router = useRouter();
     const [stats, setStats] = useState<AnalyticsSummary | null>(null);
     const [loading, setLoading] = useState(true);
     const [isDecrypted, setIsDecrypted] = useState(false);
     const [showLogs, setShowLogs] = useState(false); // Kept for compat, though unused
 
     useEffect(() => {
+        const key = localStorage.getItem('bastion_api_key');
+        if (!key) {
+            router.push('/login');
+            return;
+        }
+
         api.get<{ summary: AnalyticsSummary }>('/analytics/summary')
             .then(data => setStats(data.summary))
             .catch(err => {

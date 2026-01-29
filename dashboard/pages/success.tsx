@@ -6,8 +6,13 @@ import { ShieldCheck, CheckCircle, ArrowRight, Zap } from 'lucide-react';
 export default function Success() {
     const router = useRouter();
     const [progress, setProgress] = useState(0);
+    const [apiKey, setApiKey] = useState('');
 
     useEffect(() => {
+        // Fetch API Key from storage
+        const key = localStorage.getItem('bastion_api_key');
+        if (key) setApiKey(key);
+
         // Simulate a "Securing System" progress bar
         const timer = setInterval(() => {
             setProgress(prev => {
@@ -81,6 +86,31 @@ export default function Success() {
                     <FeatureRow icon={<CheckCircle size={20} color="#22c55e" />} text="Policy engine synced with edge nodes" delay="0.5s" />
                     <FeatureRow icon={<CheckCircle size={20} color="#22c55e" />} text="Audit logging enabled" delay="1s" />
                 </div>
+
+                {/* API Key Section */}
+                {apiKey && progress === 100 && (
+                    <div style={{
+                        marginBottom: '2rem', padding: '1.5rem',
+                        background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)',
+                        textAlign: 'left', animation: 'slideIn 0.5s ease-out'
+                    }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem', color: '#fff' }}>Initialize your Agent</h3>
+                        <p style={{ fontSize: '0.9rem', color: '#a1a1aa', marginBottom: '1rem' }}>Run this command to connect your local CLI:</p>
+
+                        <div style={{
+                            background: '#000', padding: '1rem', borderRadius: '6px', fontFamily: 'monospace',
+                            fontSize: '0.9rem', color: '#22c55e', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                        }}>
+                            <span>bastion login --key {apiKey}</span>
+                            <button
+                                onClick={() => navigator.clipboard.writeText(`bastion login --key ${apiKey}`)}
+                                style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '0.8rem' }}
+                            >
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <button
                     onClick={() => router.push('/analytics')}

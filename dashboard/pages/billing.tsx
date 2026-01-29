@@ -87,7 +87,51 @@ const PLANS: Plan[] = [
 
 import Navbar from '../components/Navbar';
 
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+
 export default function Billing() {
+    const router = useRouter();
+    const [discountCode, setDiscountCode] = useState('');
+    const [appliedDiscount, setAppliedDiscount] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+    useEffect(() => {
+        setIsLoggedIn(!!localStorage.getItem('bastion_api_key'));
+    }, []);
+
+    const handleApplyDiscount = () => {
+        if (discountCode.trim().toUpperCase() === 'BASTION2024') {
+            setAppliedDiscount(true);
+            alert("Discount code applied: 20% OFF");
+        } else {
+            alert("Invalid discount code");
+        }
+    };
+
+    const handleSubscribe = (plan: Plan) => {
+        if (plan.action === 'sales') {
+            alert(`Opening contact form for ${plan.name} Plan...`);
+            return;
+        }
+
+        const link = plan.polarLink;
+        if (!link) {
+            alert(`Polar.sh Product Link for ${plan.name} not configured yet.`);
+            return;
+        }
+
+        // Append discount if applied (mock logic for URL)
+        const finalLink = appliedDiscount ? `${link}?discount=BASTION2024` : link;
+
+        if (isLoggedIn) {
+            window.open(finalLink, '_blank');
+        } else {
+            // Redirect to login with return intent
+            router.push(`/login?redirect=${encodeURIComponent(finalLink)}`);
+        }
+    };
+
     return (
         <div style={{ minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
             <Head>
@@ -101,6 +145,29 @@ export default function Billing() {
                 <header style={{ textAlign: 'center', marginBottom: '4rem' }}>
                     <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>Simple, Transparent Pricing</h1>
                     <p style={{ color: '#889', fontSize: '1.2rem' }}>Secure your agent fleet with an immutable insurance layer.</p>
+
+                    {/* Discount Code Section */}
+                    <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                        <input
+                            type="text"
+                            placeholder="Discount Code"
+                            value={discountCode}
+                            onChange={(e) => setDiscountCode(e.target.value)}
+                            style={{
+                                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                                padding: '0.5rem 1rem', borderRadius: '8px', color: '#fff', outline: 'none'
+                            }}
+                        />
+                        <button
+                            onClick={handleApplyDiscount}
+                            style={{
+                                background: '#3b82f6', color: '#fff', border: 'none',
+                                padding: '0.5rem 1.5rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '600'
+                            }}
+                        >
+                            Apply
+                        </button>
+                    </div>
                 </header>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '4rem' }}>
@@ -152,20 +219,7 @@ export default function Billing() {
                                 transition: 'background 0.2s',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                                 fontSize: '0.9rem'
-                            }} onClick={() => {
-                                if (plan.action === 'sales') {
-                                    alert(`Opening contact form for ${plan.name} Plan...`);
-                                } else {
-                                    // Polar.sh Logic
-                                    // In a real app, verify env vars are present
-                                    const link = plan.polarLink;
-                                    if (link) {
-                                        window.open(link, '_blank');
-                                    } else {
-                                        alert(`Polar.sh Product Link for ${plan.name} not configured yet. Set POLAR_LINK_${plan.name.toUpperCase()} in env.`);
-                                    }
-                                }
-                            }}>
+                            }} onClick={() => handleSubscribe(plan)}>
                                 {plan.buttonText}
                             </button>
                         </div>

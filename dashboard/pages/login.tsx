@@ -51,7 +51,14 @@ export default function Login() {
             }
 
             localStorage.setItem('bastion_api_key', data.apiKey);
-            window.location.href = '/analytics';
+
+            // Handle Redirect (e.g., back to Checkout)
+            const { redirect } = router.query;
+            if (redirect && typeof redirect === 'string') {
+                window.location.href = decodeURIComponent(redirect);
+            } else {
+                window.location.href = '/analytics';
+            }
 
         } catch (err: any) {
             setError(err.message);

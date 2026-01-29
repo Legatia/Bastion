@@ -30,7 +30,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Login to Bastion (get API key)
-    Login,
+    Login {
+        /// API Key from Dashboard
+        #[arg(long)]
+        key: Option<String>,
+    },
     /// Initialize agent protection in current directory
     Init,
     /// Start the local supervisor proxy
@@ -66,8 +70,8 @@ async fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Login => {
-            handle_login().await;
+        Commands::Login { key } => {
+            handle_login(key.clone()).await;
         }
         Commands::Init => {
             handle_init().await;
@@ -79,24 +83,29 @@ async fn main() {
     }
 }
 
-async fn handle_login() {
+async fn handle_login(provided_key: Option<String>) {
     println!("🛡️  Bastion Protocol Login\n");
 
-    let email: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Email")
-        .interact_text()
-        .unwrap();
-
-    let password = Password::with_theme(&ColorfulTheme::default())
-        .with_prompt("Password")
-        .interact()
-        .unwrap();
+    let api_key = if let Some(k) = provided_key {
+        k
+    } else {
+        println!("Please enter your API Key from the Dashboard.");
+        println!("(You can find it at http://localhost:3001/settings after logging in)\n");
+        
+        // Use password input so it masks the key
+        Password::with_theme(&ColorfulTheme::default())
+            .with_prompt("API Key")
+            .interact()
+            .unwrap()
+    };
+    
+    // For MVP: We trust the key format or validtate length
+    if api_key.len() < 10 {
+         println!("❌ Invalid API Key format.");
+         return;
+    }
 
     println!("\n🔄 Authenticating...");
-
-    // For MVP: Accept any credentials and generate a demo API key
-    // TODO: In production, call backend /auth/login endpoint
-    let api_key = format!("bst_demo_{}", uuid::Uuid::new_v4().to_string().replace("-", "")[..16].to_string());
 
     // Save to config file
     let config_path = dirs::home_dir()
@@ -106,8 +115,9 @@ async fn handle_login() {
 
     std::fs::create_dir_all(config_path.parent().unwrap()).ok();
 
+    // We can infer email from key or just leave it blank for now
     let config = serde_json::json!({
-        "email": email,
+        "email": "user@bastion.ai", // Placeholder
         "api_key": api_key,
         "backend_url": "http://localhost:3000/v1"
     });
@@ -115,7 +125,7 @@ async fn handle_login() {
     std::fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
 
     println!("✅ Login successful!");
-    println!("\nYour API Key: {}", api_key);
+    println!("\nYour API Key: {}...", &api_key[0..5]);
     println!("Config saved to: {:?}", config_path);
     println!("\nNext step: Run `bastion init` in your agent directory");
 }
