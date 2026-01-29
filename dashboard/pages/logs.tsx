@@ -15,13 +15,22 @@ export default function Logs() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        api.get<{ logs: any[] }>('/logs', { limit: '50' })
-            .then(data => setTransactions(data.logs))
-            .catch(err => {
-                console.error("Failed to fetch logs", err);
-                setTransactions(MOCK_LOGS);
-            })
-            .finally(() => setLoading(false));
+        const fetchLogs = () => {
+            api.get<{ logs: any[] }>('/logs', { limit: '50' })
+                .then(data => setTransactions(data.logs))
+                .catch(err => {
+                    console.error("Failed to fetch logs", err);
+                    if (transactions.length === 0) {
+                        setTransactions(MOCK_LOGS);
+                    }
+                })
+                .finally(() => setLoading(false));
+        };
+
+        fetchLogs();
+        const interval = setInterval(fetchLogs, 2000); // Poll every 2 seconds matching backend speed
+
+        return () => clearInterval(interval);
     }, []);
 
     return (
@@ -54,7 +63,11 @@ export default function Logs() {
                         <p style={{ color: '#889' }}>Real-time audit trail of Agent activity.</p>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0f0', fontSize: '0.8rem', marginRight: '1rem' }}>
+                            <div style={{ width: '8px', height: '8px', background: '#0f0', borderRadius: '50%', boxShadow: '0 0 10px #0f0' }} className="pulse"></div>
+                            LIVE
+                        </div>
                         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', padding: '8px 12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Search size={16} color="#889" />
                             <input type="text" placeholder="Search Request..." style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none' }} />

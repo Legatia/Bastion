@@ -1,12 +1,21 @@
 use axum::{
-    extract::State,
-    routing::{get, post},
+    body::Body,
+    extract::{Request, State},
+    http::{Method, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{any, get, post},
     Json, Router,
 };
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::net::TcpStream;
+use hyper::upgrade::Upgraded;
+use hyper_util::rt::TokioIo;
+
+use daemonize::Daemonize;
+use std::fs::File;
 
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password};
 
@@ -27,8 +36,13 @@ enum Commands {
     /// Start the local supervisor proxy
     Start {
         /// Port to listen on
-        #[arg(short, long, default_value_t = 8080)]
+        #[arg(long, default_value_t = 3000)]
         port: u16,
+
+        /// Run in background (daemon mode)
+        #[arg(long, short = 'd')]
+        daemon: bool,
+
         /// Command to run (e.g., "python agent.py")
         #[arg(trailing_var_arg = true)]
         command: Vec<String>,
@@ -58,14 +72,7 @@ async fn main() {
         Commands::Init => {
             handle_init().await;
         }
-        Commands::Start { port, command } => {
-            if command.is_empty() {
-                println!("❌ Error: No command specified");
-                println!("Usage: bastion start -- python agent.py");
-                std::process::exit(1);
-            }
-            handle_start(*port, command).await;
-        }
+        Commands::Start { port, command, daemon } => handle_start(*port, command, *daemon).await,
         Commands::Health => {
             handle_health().await;
         }
@@ -178,29 +185,53 @@ async fn handle_init() {
     println!("  bastion start -- python agent.py");
 }
 
-async fn handle_start(port: u16, command: &[String]) {
-    println!("🛡️  Starting Bastion Supervisor\n");
+async fn handle_start(port: u16, command: &[String], daemon: bool) {
+    if daemon {
+        println!("🛡️  Starting Bastion Supervisor in background...");
+        let stdout = File::create("/tmp/bastion.out").unwrap();
+        let stderr = File::create("/tmp/bastion.err").unwrap();
+
+        let daemonize = Daemonize::new()
+            .pid_file("/tmp/bastion.pid")
+            .chown_pid_file(true)
+            .working_directory("/tmp")
+            .stdout(stdout)
+            .stderr(stderr);
+
+        match daemonize.start() {
+            Ok(_) => println!("Success, daemonized"),
+            Err(e) => eprintln!("Error, {}", e),
+        }
+    } else {
+        println!("🛡️  Starting Bastion Supervisor\n");
+    }
 
     // Load config
     let config = load_config();
 
-    println!("✓ Loaded configuration");
-    println!("✓ Backend: {}", config.backend_url);
-    println!("✓ Proxy listening on port: {}\n", port);
+    if !daemon {
+        println!("✓ Loaded configuration");
+        println!("✓ Backend: {}", config.backend_url);
+        println!("✓ Proxy listening on port: {}\n", port);
+    }
 
     // Start proxy server
     let app_state = Arc::new(config.clone());
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/authorize", post(authorize_action))
+        .route("/", any(proxy_handler))
+        .route("/*path", any(proxy_handler)) // Catch-all for proxying
         .with_state(app_state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
-    println!("🚀 Bastion Supervisor active!");
-    println!("   Proxy: http://localhost:{}", port);
-    println!("   Dashboard: http://localhost:3001");
-    println!("\n📊 Monitoring agent actions...\n");
+    if !daemon {
+        println!("🚀 Bastion Supervisor active!");
+        println!("   Proxy: http://localhost:{}", port);
+        println!("   Dashboard: http://localhost:3001");
+        println!("\n📊 Monitoring agent actions...\n");
+    }
 
     // Start agent in background with proxy environment
     if !command.is_empty() {
@@ -208,8 +239,100 @@ async fn handle_start(port: u16, command: &[String]) {
     }
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    
+    // We need to handle CONNECT method manually for HTTPS tunneling if we want to support it properly,
+    // but axum can route it. We just need to make sure our handler supports upgrade.
     axum::serve(listener, app).await.unwrap();
+} 
+
+async fn proxy_handler(
+    State(config): State<Arc<Config>>,
+    req: Request<Body>,
+) -> Response {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+
+    // Log intercepted request
+    // In a real implementation we would call authorize_action here internally first
+    
+    if method == Method::CONNECT {
+        // HTTPS Tunneling
+        if let Some(host) = uri.authority() {
+            let host_addr = host.to_string();
+            tokio::spawn(async move {
+                match hyper::upgrade::on(req).await {
+                    Ok(upgraded) => {
+                        if let Err(e) = tunneling(upgraded, host_addr).await {
+                            eprintln!("server io error: {}", e);
+                        };
+                    }
+                    Err(e) => eprintln!("upgrade error: {}", e),
+                }
+            });
+            return (StatusCode::OK, "Connection skipped").into_response(); // Standard response for CONNECT success
+        } else {
+             return (StatusCode::BAD_REQUEST, "CONNECT must be to a socket address").into_response();
+        }
+    }
+
+    // Standard HTTP Proxying
+    let client = reqwest::Client::new();
+    // We need to construct the full URL. If it's a proxy request, the URI is absolute.
+    // If it's a direct request (transparent proxy), we might need Host header.
+    // For explicit proxying (export HTTP_PROXY=...), the client sends absolute URI.
+    
+    let url = uri.to_string();
+    
+    // Perform authorization check
+    let action_type = "http_request".to_string();
+    let details = serde_json::json!({
+        "method": method.to_string(),
+        "url": url,
+        "host": uri.host().unwrap_or("unknown").to_string()
+    });
+
+    match check_policy(&config, action_type, details).await {
+        Ok(allowed) => {
+            if !allowed {
+                println!("   🛑 BLOCKED by policy");
+                return (StatusCode::FORBIDDEN, "Blocked by Bastion Policy").into_response();
+            }
+        }
+        Err(e) => {
+             // Fail open or closed based on preference. Here fail open but log.
+             eprintln!("   ⚠️  Policy check failed: {}", e);
+        }
+    }
+    
+    // Forward request
+    let resp = client
+        .request(method, url)
+        .headers(req.headers().clone())
+        // .body(req.into_body()) // converting axum body to reqwest is tricky without bytes
+        .send()
+        .await;
+
+    match resp {
+        Ok(res) => {
+            let mut response = Response::builder().status(res.status());
+            *response.headers_mut().unwrap() = res.headers().clone();
+            // We'd need to stream the body back. For now, empty body or simple text.
+            let bytes = res.bytes().await.unwrap_or_default();
+             response.body(Body::from(bytes)).unwrap()
+        },
+        Err(e) => {
+             (StatusCode::BAD_GATEWAY, format!("Proxy error: {}", e)).into_response()
+        }
+    }
 }
+
+async fn tunneling(upgraded: Upgraded, host_addr: String) -> std::io::Result<()> {
+    let mut upgraded = TokioIo::new(upgraded);
+    let mut server = TcpStream::connect(host_addr).await?;
+    let _ = tokio::io::copy_bidirectional(&mut upgraded, &mut server).await?;
+    Ok(())
+}
+
 
 async fn start_agent(command: Vec<String>, proxy_port: u16) {
     // Wait a bit for proxy to start
@@ -323,10 +446,41 @@ struct Action {
     details: serde_json::Value,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct AuthorizeResponse {
     allowed: bool,
     reason: Option<String>,
+}
+
+async fn check_policy(config: &Config, action_type: String, details: serde_json::Value) -> Result<bool, String> {
+    let client = reqwest::Client::new();
+     let backend_payload = serde_json::json!({
+        "api_key": config.api_key,
+        "agent_id": config.agent_id,
+        "action": {
+            "type": action_type,
+            "details": details
+        }
+    });
+
+    match client
+        .post(format!("{}/authorize", config.backend_url))
+        .header("X-API-Key", &config.api_key)
+        .json(&backend_payload)
+        .timeout(std::time::Duration::from_secs(2)) // Fast timeout for proxy
+        .send()
+        .await
+    {
+        Ok(resp) => {
+             if resp.status().is_success() {
+                let result = resp.json::<AuthorizeResponse>().await.map_err(|e| e.to_string())?;
+                Ok(result.allowed)
+             } else {
+                 Err(format!("Backend error: {}", resp.status()))
+             }
+        }
+        Err(e) => Err(e.to_string())
+    }
 }
 
 async fn authorize_action(
