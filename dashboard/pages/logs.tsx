@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Shield, CheckCircle, XCircle, Search, Filter } from 'lucide-react';
 import { api } from '../lib/api';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 
 const MOCK_LOGS = [
     { id: 'req_8f92a', actionType: 'API Request', agentId: 'Agent-001', actionData: { url: 'api.stripe.com', method: 'POST /v1/charges' }, decision: 'ALLOWED', timestamp: new Date().toISOString() },
@@ -11,10 +12,18 @@ const MOCK_LOGS = [
 ];
 
 export default function Logs() {
+    const router = useRouter();
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Auth check
+        const key = localStorage.getItem('bastion_api_key');
+        if (!key) {
+            router.push('/login');
+            return;
+        }
+
         const fetchLogs = () => {
             api.get<{ logs: any[] }>('/logs', { limit: '50' })
                 .then(data => setTransactions(data.logs))
@@ -28,7 +37,7 @@ export default function Logs() {
         };
 
         fetchLogs();
-        const interval = setInterval(fetchLogs, 2000); // Poll every 2 seconds matching backend speed
+        const interval = setInterval(fetchLogs, 2000);
 
         return () => clearInterval(interval);
     }, []);

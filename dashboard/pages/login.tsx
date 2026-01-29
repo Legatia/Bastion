@@ -17,6 +17,9 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Extract referral code from URL
+    const referralCode = typeof router.query.ref === 'string' ? router.query.ref : undefined;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -37,11 +40,17 @@ export default function Login() {
 
         const endpoint = isLogin ? '/auth/login' : '/auth/register';
 
+        // Build request body, include referral code for registration
+        const body: any = { email, password };
+        if (!isLogin && referralCode) {
+            body.referral_code = referralCode;
+        }
+
         try {
             const res = await fetch(`${API_BASE_URL}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify(body),
             });
 
             const data = await res.json();

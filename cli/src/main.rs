@@ -485,6 +485,17 @@ async fn check_policy(config: &Config, action_type: String, details: serde_json:
              if resp.status().is_success() {
                 let result = resp.json::<AuthorizeResponse>().await.map_err(|e| e.to_string())?;
                 Ok(result.allowed)
+             } else if resp.status() == reqwest::StatusCode::FORBIDDEN {
+                // Check for quota exceeded
+                let body = resp.text().await.unwrap_or_default();
+                if body.contains("QUOTA_EXCEEDED") {
+                    eprintln!("\n🚫 QUOTA EXCEEDED");
+                    eprintln!("   You've reached your plan's limit.");
+                    eprintln!("   Upgrade at: https://bastion.ai/billing\n");
+                    Err("QUOTA_EXCEEDED".to_string())
+                } else {
+                    Err(format!("Access denied: {}", body))
+                }
              } else {
                  Err(format!("Backend error: {}", resp.status()))
              }

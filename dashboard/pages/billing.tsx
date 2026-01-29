@@ -97,7 +97,9 @@ export default function Billing() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
 
     useEffect(() => {
-        setIsLoggedIn(!!localStorage.getItem('bastion_api_key'));
+        const key = localStorage.getItem('bastion_api_key');
+        setIsLoggedIn(!!key);
+        // Note: Billing page is accessible to view plans, but checkout requires login (already handled)
     }, []);
 
     const handleApplyDiscount = () => {

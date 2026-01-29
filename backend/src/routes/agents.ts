@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { authenticateApiKey } from '../middleware/auth';
+import { QuotaService } from '../services/quota-service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -48,6 +49,19 @@ router.post('/agents', authenticateApiKey, async (req: Request, res: Response) =
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // *** QUOTA CHECK ***
+    const quotaCheck = await QuotaService.checkAgentLimit(req.user.id);
+    if (!quotaCheck.allowed) {
+      return res.status(403).json({
+        error: 'QUOTA_EXCEEDED',
+        message: quotaCheck.message,
+        quota: {
+          current: quotaCheck.current,
+          max: quotaCheck.max,
+        },
+      });
     }
 
     const validated = agentSchema.parse(req.body);

@@ -45,11 +45,17 @@ export default function Navbar() {
                 <Link href="/analytics" style={{ color: isActive('/analytics') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/analytics') ? '600' : '400' }}>
                     Analytics
                 </Link>
+                <Link href="/agents" style={{ color: isActive('/agents') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/agents') ? '600' : '400' }}>
+                    Agents
+                </Link>
                 <Link href="/policies" style={{ color: isActive('/policies') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/policies') ? '600' : '400' }}>
                     Policies
                 </Link>
                 <Link href="/logs" style={{ color: isActive('/logs') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/logs') ? '600' : '400' }}>
                     Logs
+                </Link>
+                <Link href="/referrals" style={{ color: isActive('/referrals') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/referrals') ? '600' : '400' }}>
+                    Referrals
                 </Link>
                 <Link href="/billing" style={{ color: isActive('/billing') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/billing') ? '600' : '400' }}>
                     Billing

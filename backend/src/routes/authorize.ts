@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { policyEvaluator } from '../services/policy-evaluator';
 import { authenticateApiKey } from '../middleware/auth';
 import { AuthorizeRequest, AuthorizeResponse } from '../types';
+import { QuotaService } from '../services/quota-service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -34,6 +35,20 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
 
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // *** QUOTA CHECK ***
+    const quotaCheck = await QuotaService.checkDailyLimit(req.user.id);
+    if (!quotaCheck.allowed) {
+      return res.status(403).json({
+        allowed: false,
+        error: 'QUOTA_EXCEEDED',
+        reason: quotaCheck.message,
+        quota: {
+          current: quotaCheck.current,
+          max: quotaCheck.max,
+        },
+      });
     }
 
     // Fetch user's active policies

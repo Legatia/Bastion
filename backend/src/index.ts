@@ -26,6 +26,7 @@ import agentRoutes from './routes/agents';
 import authRoutes from './routes/auth';
 import webhookRoutes from './routes/webhooks';
 import referralRoutes from './routes/referrals';
+import usageRoutes from './routes/usage';
 
 // Initialize Express app
 const app = express();
@@ -63,6 +64,7 @@ app.use(`/${API_VERSION}`, agentRoutes);
 app.use(`/${API_VERSION}`, authRoutes);
 app.use(`/${API_VERSION}`, webhookRoutes);
 app.use(`/${API_VERSION}`, referralRoutes);
+app.use(`/${API_VERSION}`, usageRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {

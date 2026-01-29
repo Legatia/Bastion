@@ -1,15 +1,34 @@
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Navbar from '../components/Navbar';
-import { Shield, Key, Copy, Check, User } from 'lucide-react';
+import { Shield, Key, Copy, Check, User, Zap, Users, BarChart3 } from 'lucide-react';
+import { api } from '../lib/api';
+
+interface UsageSummary {
+    tier: string;
+    agents: { current: number; max: number };
+    dailyChecks: { current: number; max: number };
+}
 
 export default function Profile() {
+    const router = useRouter();
     const [apiKey, setApiKey] = useState('');
     const [copied, setCopied] = useState(false);
+    const [usage, setUsage] = useState<UsageSummary | null>(null);
 
     useEffect(() => {
         const key = localStorage.getItem('bastion_api_key');
-        if (key) setApiKey(key);
+        if (!key) {
+            router.push('/login');
+            return;
+        }
+        setApiKey(key);
+
+        // Fetch usage summary
+        api.get<UsageSummary>('/usage')
+            .then(data => setUsage(data))
+            .catch(err => console.error("Failed to fetch usage", err));
     }, []);
 
     const handleCopy = () => {
@@ -17,6 +36,8 @@ export default function Profile() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
+
+    const formatLimit = (val: number) => val === -1 ? '∞' : val.toLocaleString();
 
     return (
         <div style={{ minHeight: '100vh', background: '#09090b', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
@@ -26,7 +47,7 @@ export default function Profile() {
 
             <Navbar />
 
-            <main style={{ padding: '4rem 2rem', maxWidth: '800px', margin: '0 auto' }}>
+            <main style={{ padding: '4rem 2rem', maxWidth: '900px', margin: '0 auto' }}>
                 <header style={{ marginBottom: '3rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '1rem' }}>
                         <div style={{ padding: '12px', background: 'rgba(59,130,246,0.1)', borderRadius: '50%', color: '#3b82f6' }}>
@@ -40,6 +61,49 @@ export default function Profile() {
                 </header>
 
                 <div style={{ display: 'grid', gap: '2rem' }}>
+
+                    {/* Tier & Usage Section */}
+                    {usage && (
+                        <div style={{
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '16px',
+                            padding: '2rem'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
+                                <Zap size={20} color="#a855f7" />
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: '600', margin: 0 }}>Subscription & Usage</h2>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                                {/* Tier Badge */}
+                                <div style={{ background: '#000', padding: '1.25rem', borderRadius: '12px', border: '1px solid #27272a', textAlign: 'center' }}>
+                                    <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '0.5rem' }}>PLAN</p>
+                                    <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#a855f7' }}>{usage.tier}</p>
+                                </div>
+
+                                {/* Agents Usage */}
+                                <div style={{ background: '#000', padding: '1.25rem', borderRadius: '12px', border: '1px solid #27272a', textAlign: 'center' }}>
+                                    <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                        <Users size={14} /> AGENTS
+                                    </p>
+                                    <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+                                        {usage.agents.current} / {formatLimit(usage.agents.max)}
+                                    </p>
+                                </div>
+
+                                {/* Daily Checks */}
+                                <div style={{ background: '#000', padding: '1.25rem', borderRadius: '12px', border: '1px solid #27272a', textAlign: 'center' }}>
+                                    <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                        <BarChart3 size={14} /> TODAY CHECKS
+                                    </p>
+                                    <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+                                        {usage.dailyChecks.current.toLocaleString()} / {formatLimit(usage.dailyChecks.max)}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* API Key Section */}
                     <div style={{
