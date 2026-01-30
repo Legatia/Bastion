@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { Shield, ArrowRight, Lock, Loader2, CheckCircle, Zap, Globe } from 'lucide-react';
 import { api, API_BASE_URL } from '../lib/api';
@@ -19,6 +19,46 @@ export default function Login() {
 
     // Extract referral code from URL
     const referralCode = typeof router.query.ref === 'string' ? router.query.ref : undefined;
+
+    // Handle Google OAuth callback
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        // Check if there's an access_token in the URL hash (from Google OAuth callback)
+        const hash = window.location.hash;
+        if (hash && hash.includes('access_token')) {
+            const params = new URLSearchParams(hash.substring(1)); // Remove the #
+            const accessToken = params.get('access_token');
+
+            if (accessToken) {
+                setLoading(true);
+                setError('');
+
+                // Clear the hash from URL
+                window.history.replaceState(null, '', window.location.pathname);
+
+                // Exchange Google token for Bastion API key
+                fetch(`${API_BASE_URL}/auth/google`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ access_token: accessToken }),
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+                        localStorage.setItem('bastion_api_key', data.apiKey);
+                        window.location.href = '/analytics';
+                    })
+                    .catch(err => {
+                        console.error('Google auth error:', err);
+                        setError(err.message || 'Google authentication failed');
+                        setLoading(false);
+                    });
+            }
+        }
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

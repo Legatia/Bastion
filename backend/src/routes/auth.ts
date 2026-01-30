@@ -133,4 +133,78 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * POST /v1/auth/google
+ * Exchange Google OAuth access token for Bastion API key
+ */
+router.post('/auth/google', async (req: Request, res: Response) => {
+    try {
+        const { access_token } = req.body;
+
+        if (!access_token) {
+            return res.status(400).json({ error: 'Missing access_token' });
+        }
+
+        // Verify token with Google and get user info
+        const googleResponse = await fetch(
+            `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
+        );
+
+        if (!googleResponse.ok) {
+            return res.status(401).json({ error: 'Invalid Google token' });
+        }
+
+        const googleUser = await googleResponse.json() as {
+            id: string;
+            email: string;
+            name?: string;
+            picture?: string;
+        };
+
+        if (!googleUser.email) {
+            return res.status(400).json({ error: 'Could not get email from Google' });
+        }
+
+        // Check if user exists
+        let user = await prisma.user.findUnique({
+            where: { email: googleUser.email },
+        });
+
+        if (!user) {
+            // Create new user with Google OAuth
+            user = await prisma.user.create({
+                data: {
+                    email: googleUser.email,
+                    password: '', // No password for OAuth users
+                    name: googleUser.name || googleUser.email.split('@')[0],
+                    apiKey: `bst_live_${Math.random().toString(36).substring(2, 18)}`,
+                    tier: 'STARTER',
+                    googleId: googleUser.id,
+                },
+            });
+            console.log(`✓ New user created via Google OAuth: ${googleUser.email}`);
+        } else if (!user.googleId) {
+            // Link Google account to existing user
+            user = await prisma.user.update({
+                where: { id: user.id },
+                data: { googleId: googleUser.id },
+            });
+        }
+
+        res.json({
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                tier: user.tier,
+            },
+            apiKey: user.apiKey,
+        });
+
+    } catch (error: any) {
+        console.error('Google auth error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 export default router;
