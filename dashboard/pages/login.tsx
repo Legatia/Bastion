@@ -204,12 +204,15 @@ export default function Login() {
                                 return;
                             }
 
-                            const redirectUri = typeof window !== 'undefined' ? window.location.origin : '';
+                            // IMPORTANT: Redirect back to /login page so the callback handler can process the token
+                            const redirectUri = typeof window !== 'undefined' ? `${window.location.origin}/login` : '';
                             const scope = 'email profile';
                             const responseType = 'token'; // Using Implicit flow for client-side demo
 
                             const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=${responseType}&scope=${encodeURIComponent(scope)}`;
 
+                            console.log('[Google OAuth] Redirecting to:', authUrl);
+                            console.log('[Google OAuth] Redirect URI:', redirectUri);
                             window.location.href = authUrl;
                         }}
                         style={{
