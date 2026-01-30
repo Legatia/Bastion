@@ -1,20 +1,16 @@
 import Head from 'next/head';
 import InteractiveBackground from '../components/InteractiveBackground';
 import Link from 'next/link';
-import { Shield, CheckCircle, XCircle, Search, Filter } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Search, Filter, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-
-const MOCK_LOGS = [
-    { id: 'req_8f92a', actionType: 'API Request', agentId: 'Agent-001', actionData: { url: 'api.stripe.com', method: 'POST /v1/charges' }, decision: 'ALLOWED', timestamp: new Date().toISOString() },
-    { id: 'req_1b3d4', actionType: 'Data Export', agentId: 'Agent-001', actionData: { url: 'unknown-host', payload: 'Customer DB Dump' }, decision: 'BLOCKED', reason: 'DLP: SSN Detected', timestamp: new Date().toISOString() },
-];
 
 export default function Logs() {
     const router = useRouter();
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         // Auth check
@@ -26,12 +22,13 @@ export default function Logs() {
 
         const fetchLogs = () => {
             api.get<{ logs: any[] }>('/logs', { limit: '50' })
-                .then(data => setTransactions(data.logs))
+                .then(data => {
+                    setTransactions(data.logs);
+                    setError(null);
+                })
                 .catch(err => {
                     console.error("Failed to fetch logs", err);
-                    if (transactions.length === 0) {
-                        setTransactions(MOCK_LOGS);
-                    }
+                    setError("Could not fetch logs from server");
                 })
                 .finally(() => setLoading(false));
         };
@@ -106,7 +103,28 @@ export default function Logs() {
                             </tr>
                         </thead>
                         <tbody>
-                            {transactions.map((tx, idx) => (
+                            {error && (
+                                <tr>
+                                    <td colSpan={6} style={{ padding: '3rem', textAlign: 'center' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', color: '#f97316' }}>
+                                            <AlertTriangle size={32} />
+                                            <p>{error}</p>
+                                            <p style={{ color: '#889', fontSize: '0.9rem' }}>Make sure the backend is running and try again.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                            {!error && transactions.length === 0 && !loading && (
+                                <tr>
+                                    <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: '#889' }}>
+                                        <p>No logs yet. Run an agent with Bastion protection to see activity here.</p>
+                                        <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                                            <code>bastion start -- python your_agent.py</code>
+                                        </p>
+                                    </td>
+                                </tr>
+                            )}
+                            {!error && transactions.map((tx, idx) => (
                                 <tr key={tx.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }} className="hover-row">
                                     <td style={{ padding: '1.5rem' }}>
                                         <StatusBadge status={tx.decision || 'UNKNOWN'} reason={tx.reason} />
@@ -116,7 +134,7 @@ export default function Logs() {
                                     <td style={{ padding: '1.5rem' }}>{tx.agent?.name || tx.agentId || 'Unknown'}</td>
                                     <td style={{ padding: '1.5rem', fontFamily: 'monospace' }}>
                                         {/* Extremely simplified visualization of payload */}
-                                        {JSON.stringify(tx.actionData).substring(0, 40)}
+                                        {tx.actionData ? JSON.stringify(tx.actionData).substring(0, 40) : '-'}
                                     </td>
                                     <td style={{ padding: '1.5rem', color: '#889' }}>
                                         {tx.timestamp ? new Date(tx.timestamp).toLocaleTimeString() : '-'}

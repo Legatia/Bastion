@@ -13,9 +13,11 @@ export interface Action {
 
 export type ActionType =
   | 'http_request'
+  | 'https_connect'
   | 'file_write'
   | 'file_read'
   | 'file_delete'
+  | 'shell_command'
   | 'subprocess'
   | 'database_query'
   | 'tool_call'
@@ -79,6 +81,9 @@ export interface PolicyConfig {
   // DLP (Data Loss Prevention)
   scan_patterns?: string[]; // regex patterns for PII, secrets, etc
   block_on_match?: boolean;
+  use_builtin_patterns?: boolean;
+  severity_threshold?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  enabled_pattern_types?: string[];
 
   // Time Window
   allowed_hours?: { start: number; end: number }; // 0-23
@@ -99,7 +104,7 @@ export interface PolicyConfig {
 }
 
 export interface User {
-  id: string;
+  id: bigint;
   email: string;
   apiKey: string;
   tier: SubscriptionTier;
@@ -108,13 +113,16 @@ export interface User {
 export type SubscriptionTier = 'STARTER' | 'GROWTH' | 'PRO' | 'ENTERPRISE';
 
 export interface Policy {
-  id: string;
-  userId: string;
+  id: bigint;
+  userId: bigint;
+  agentId: bigint | null;
   name: string;
   type: PolicyType;
   config: PolicyConfig;
   enabled: boolean;
   priority: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export type PolicyType =
@@ -131,12 +139,12 @@ export type PolicyType =
 export interface EvaluationResult {
   allowed: boolean;
   reason?: string;
-  policyId?: string;
+  policyId?: bigint;
 }
 
 export interface EvaluationContext {
   user: User;
+  agent: any | null;
   action: Action;
   policies: Policy[];
-  agentId?: string;
 }

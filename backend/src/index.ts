@@ -66,6 +66,19 @@ app.use(`/${API_VERSION}`, webhookRoutes);
 app.use(`/${API_VERSION}`, referralRoutes);
 app.use(`/${API_VERSION}`, usageRoutes);
 
+// CLI-friendly endpoint aliases
+// /v1/audit -> /v1/logs
+app.use(`/${API_VERSION}/audit`, logRoutes);
+
+// /v1/stats -> /v1/analytics/summary
+import { Router } from 'express';
+const statsRouter = Router();
+statsRouter.get('/stats', async (req, res, next) => {
+  req.url = '/analytics/summary' + (req.url === '/stats' ? '' : req.url.replace('/stats', ''));
+  analyticsRoutes(req, res, next);
+});
+app.use(`/${API_VERSION}`, statsRouter);
+
 // 404 handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({

@@ -110,7 +110,7 @@ export class PolicyEvaluator {
     // Get total spending in this window
     const logs = await prisma.actionLog.findMany({
       where: {
-        userId: context.user.id,
+        userId: context.user.id.toString(),
         decision: 'ALLOWED',
         timestamp: { gte: windowStart },
       },
@@ -143,7 +143,7 @@ export class PolicyEvaluator {
    */
   private async evaluateRateLimit(
     policy: Policy,
-    action: Action,
+    _action: Action,
     context: EvaluationContext
   ): Promise<EvaluationResult> {
     const config = policy.config as PolicyConfig;
@@ -154,7 +154,7 @@ export class PolicyEvaluator {
     // Count actions in this window
     const count = await prisma.actionLog.count({
       where: {
-        userId: context.user.id,
+        userId: context.user.id.toString(),
         timestamp: { gte: windowStart },
       },
     });
@@ -286,28 +286,53 @@ export class PolicyEvaluator {
     const {
       scan_patterns = [],
       block_on_match = true,
+      use_builtin_patterns = true,
+      severity_threshold = 'MEDIUM',
+      enabled_pattern_types = [],
     } = config;
+
+    // Import DLP scanner
+    const { DLPScanner } = require('./dlp-scanner');
 
     // Convert action to string for scanning
     const content = JSON.stringify(action.details);
 
-    // Check each pattern
-    for (const pattern of scan_patterns) {
-      try {
-        const regex = new RegExp(pattern, 'gi');
-        const matches = content.match(regex);
+    // Use built-in comprehensive patterns if enabled
+    if (use_builtin_patterns) {
+      const result = DLPScanner.scan(
+        content,
+        enabled_pattern_types.length > 0 ? enabled_pattern_types : undefined,
+        severity_threshold
+      );
 
-        if (matches && matches.length > 0) {
-          if (block_on_match) {
-            return {
-              allowed: false,
-              reason: `DLP: Sensitive data detected (${matches.length} matches)`,
-              policyId: policy.id,
-            };
+      if (result.blocked) {
+        return {
+          allowed: false,
+          reason: `DLP: ${result.summary}`,
+          policyId: policy.id,
+        };
+      }
+    }
+
+    // Check custom patterns if provided
+    if (scan_patterns && scan_patterns.length > 0) {
+      for (const pattern of scan_patterns) {
+        try {
+          const regex = new RegExp(pattern, 'gi');
+          const matches = content.match(regex);
+
+          if (matches && matches.length > 0) {
+            if (block_on_match) {
+              return {
+                allowed: false,
+                reason: `DLP: Custom pattern matched (${matches.length} matches)`,
+                policyId: policy.id,
+              };
+            }
           }
+        } catch (e) {
+          console.error('Invalid DLP pattern:', pattern);
         }
-      } catch (e) {
-        console.error('Invalid DLP pattern:', pattern);
       }
     }
 
@@ -320,10 +345,10 @@ export class PolicyEvaluator {
    */
   private evaluateTimeWindow(
     policy: Policy,
-    action: Action
+    _action: Action
   ): EvaluationResult {
     const config = policy.config as PolicyConfig;
-    const { allowed_hours, allowed_days, timezone = 'UTC' } = config;
+    const { allowed_hours, allowed_days } = config;
 
     const now = new Date();
     const hour = now.getHours();
@@ -436,7 +461,10 @@ export class PolicyEvaluator {
 
       clearTimeout(timeout);
 
-      const result = await response.json();
+      const result = (await response.json()) as {
+        allowed?: boolean;
+        reason?: string;
+      };
 
       return {
         allowed: result.allowed !== false,

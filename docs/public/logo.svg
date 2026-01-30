@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <!-- Shield outline -->
+  <path d="M60 10 L100 30 L100 70 Q100 90 60 110 Q20 90 20 70 L20 30 Z"
+        fill="none"
+        stroke="#3b82f6"
+        stroke-width="4"/>
+
+  <!-- Inner shield -->
+  <path d="M60 20 L90 35 L90 65 Q90 80 60 95 Q30 80 30 65 L30 35 Z"
+        fill="#3b82f6"
+        opacity="0.1"/>
+
+  <!-- Lock icon -->
+  <rect x="50" y="50" width="20" height="25" rx="2" fill="#3b82f6"/>
+  <path d="M47 50 L47 43 Q47 35 60 35 Q73 35 73 43 L73 50"
+        fill="none"
+        stroke="#3b82f6"
+        stroke-width="3"/>
+  <circle cx="60" cy="62" r="2.5" fill="white"/>
+
+  <!-- Text -->
+  <text x="60" y="115" font-family="Arial, sans-serif" font-size="10" font-weight="bold"
+        text-anchor="middle" fill="#1e293b">BASTION</text>
+</svg>
