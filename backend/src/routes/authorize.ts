@@ -65,9 +65,9 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
     // Evaluate action against policies
     const result = await policyEvaluator.evaluate({
       user: req.user as any,
-      action,
+      action: action as any,
       policies: policies as any,
-      agentId: agent_id,
+      agent: agent_id as any,
     });
 
     const latencyMs = Date.now() - startTime;
@@ -77,7 +77,7 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
       data: {
         userId: req.user.id,
         agentId: agent_id,
-        policyId: result.policyId,
+        policyId: result.policyId?.toString() || null,
         actionType: action.type,
         actionData: action.details,
         decision: result.allowed ? 'ALLOWED' : 'BLOCKED',
@@ -117,7 +117,7 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
     const response: AuthorizeResponse = {
       allowed: result.allowed,
       reason: result.reason,
-      policy_id: result.policyId,
+      policy_id: result.policyId?.toString(),
       log_id: actionLog.id,
       latency_ms: latencyMs,
     };

@@ -65,7 +65,7 @@ router.get('/policies/:id', authenticateApiKey, async (req: Request, res: Respon
 
     const policy = await prisma.policy.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         userId: req.user.id,
       },
     });
@@ -145,7 +145,7 @@ router.put('/policies/:id', authenticateApiKey, async (req: Request, res: Respon
     // Check if policy exists and belongs to user
     const existing = await prisma.policy.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         userId: req.user.id,
       },
     });
@@ -162,7 +162,7 @@ router.put('/policies/:id', authenticateApiKey, async (req: Request, res: Respon
 
     // Update policy
     const policy = await prisma.policy.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: validated,
     });
 
@@ -198,7 +198,7 @@ router.delete('/policies/:id', authenticateApiKey, async (req: Request, res: Res
     // Check if policy exists and belongs to user
     const existing = await prisma.policy.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         userId: req.user.id,
       },
     });
@@ -212,7 +212,7 @@ router.delete('/policies/:id', authenticateApiKey, async (req: Request, res: Res
 
     // Delete policy
     await prisma.policy.delete({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
 
     res.json({ message: 'Policy deleted successfully' });

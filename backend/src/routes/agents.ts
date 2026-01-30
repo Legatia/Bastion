@@ -104,7 +104,7 @@ router.put('/agents/:id/heartbeat', authenticateApiKey, async (req: Request, res
 
     const agent = await prisma.agent.updateMany({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         userId: req.user.id,
       },
       data: {
@@ -142,7 +142,7 @@ router.delete('/agents/:id', authenticateApiKey, async (req: Request, res: Respo
 
     const agent = await prisma.agent.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         userId: req.user.id,
       },
     });
@@ -155,7 +155,7 @@ router.delete('/agents/:id', authenticateApiKey, async (req: Request, res: Respo
     }
 
     await prisma.agent.delete({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
 
     res.json({ message: 'Agent deleted successfully' });

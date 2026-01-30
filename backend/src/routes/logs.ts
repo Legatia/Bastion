@@ -107,7 +107,7 @@ router.get('/logs/:id', authenticateApiKey, async (req: Request, res: Response) 
 
     const log = await prisma.actionLog.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         userId: req.user.id,
       },
       include: {
