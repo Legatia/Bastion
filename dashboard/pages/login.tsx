@@ -26,9 +26,12 @@ export default function Login() {
 
         // Check if there's an access_token in the URL hash (from Google OAuth callback)
         const hash = window.location.hash;
+        console.log('[Google OAuth] Checking for callback, hash:', hash ? 'present' : 'empty');
+
         if (hash && hash.includes('access_token')) {
             const params = new URLSearchParams(hash.substring(1)); // Remove the #
             const accessToken = params.get('access_token');
+            console.log('[Google OAuth] Access token found:', accessToken?.substring(0, 20) + '...');
 
             if (accessToken) {
                 setLoading(true);
@@ -37,22 +40,30 @@ export default function Login() {
                 // Clear the hash from URL
                 window.history.replaceState(null, '', window.location.pathname);
 
+                const backendUrl = `${API_BASE_URL}/auth/google`;
+                console.log('[Google OAuth] Calling backend:', backendUrl);
+
                 // Exchange Google token for Bastion API key
-                fetch(`${API_BASE_URL}/auth/google`, {
+                fetch(backendUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ access_token: accessToken }),
                 })
-                    .then(res => res.json())
+                    .then(res => {
+                        console.log('[Google OAuth] Backend response status:', res.status);
+                        return res.json();
+                    })
                     .then(data => {
+                        console.log('[Google OAuth] Backend response:', data);
                         if (data.error) {
                             throw new Error(data.error);
                         }
                         localStorage.setItem('bastion_api_key', data.apiKey);
+                        console.log('[Google OAuth] Success! Redirecting to /analytics');
                         window.location.href = '/analytics';
                     })
                     .catch(err => {
-                        console.error('Google auth error:', err);
+                        console.error('[Google OAuth] Error:', err);
                         setError(err.message || 'Google authentication failed');
                         setLoading(false);
                     });
