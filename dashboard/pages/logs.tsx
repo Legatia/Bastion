@@ -5,6 +5,7 @@ import { Shield, CheckCircle, XCircle, Search, Filter, AlertTriangle } from 'luc
 import { api } from '../lib/api';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Navbar from '../components/Navbar';
 
 export default function Logs() {
     const router = useRouter();
@@ -47,20 +48,7 @@ export default function Logs() {
             </Head>
 
             {/* Navigation */}
-            <nav style={{ padding: '2rem 4rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                    <Link href="/" style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Shield color="var(--primary)" size={28} />
-                        BASTION
-                    </Link>
-                    <div style={{ height: '24px', width: '1px', background: 'rgba(255,255,255,0.2)' }}></div>
-
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <Link href="/policies" style={{ color: '#889', transition: 'color 0.2s' }}>Policies</Link>
-                        <Link href="/logs" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Forensic Logs</Link>
-                    </div>
-                </div>
-            </nav>
+            <Navbar />
 
             <main style={{ padding: '2rem 4rem', flex: 1, maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
                 <header style={{ marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>

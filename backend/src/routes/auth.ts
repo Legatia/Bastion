@@ -180,6 +180,7 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                     apiKey: `bst_live_${Math.random().toString(36).substring(2, 18)}`,
                     tier: 'STARTER',
                     googleId: googleUser.id,
+                    referralCode: `ref_${Math.random().toString(36).substring(2, 10)}`,
                 },
             });
             console.log(`✓ New user created via Google OAuth: ${googleUser.email}`);
