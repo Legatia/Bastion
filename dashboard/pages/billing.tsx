@@ -239,7 +239,7 @@ export default function Billing() {
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                                 fontSize: '0.9rem'
                             }} onClick={() => handleSubscribe(plan)}>
-                                {usage?.tier === 'TRIAL' && plan.name === 'Starter' ? 'Subscribe to Starter' : plan.buttonText}
+                                {usage?.tier === 'TRIAL' && plan.name === 'Starter' ? 'Extend Access' : plan.buttonText}
                             </button>
                         </div>
                     ))}
