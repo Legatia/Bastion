@@ -41,17 +41,45 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
       },
     });
 
-    // If code exists and hasn't expired, return it
-    if (existingCode && new Date(existingCode.expiresAt) > now) {
-      return res.json({
-        code: existingCode.code,
-        percentage: existingCode.percentage,
-        couponsUsed: existingCode.couponsUsed,
-        expiresAt: existingCode.expiresAt,
-        polarDiscountId: existingCode.polarDiscountId,
-        redeemed: existingCode.redeemed,
-        isNewCode: false,
+    // If code exists...
+    if (existingCode) {
+      // If it's already redeemed, we can't change it. User has to wait for next month or until reset.
+      // (Or we could allow generating a SECOND code if they haven't hit the 50% limit? 
+      //  But simplify: One active code at a time).
+
+      if (existingCode.redeemed) {
+        // Return existing redeemed code info
+        return res.json({
+          code: existingCode.code,
+          percentage: existingCode.percentage,
+          couponsUsed: existingCode.couponsUsed,
+          expiresAt: existingCode.expiresAt,
+          polarDiscountId: existingCode.polarDiscountId,
+          redeemed: existingCode.redeemed,
+          isNewCode: false,
+        });
+      }
+
+      // If NOT redeemed, we interpret this request as "Regenerate/Upgrade"
+      // We must delete the old one and refund coupons before creating the new one.
+      logger.info('[POLAR] Replacing existing unredeemed code', { code: existingCode.code });
+
+      try {
+        // 1. Delete from Polar
+        await PolarService.deleteDiscount(existingCode.polarDiscountId);
+      } catch (err) {
+        logger.warn('[POLAR] Failed to delete old discount from Polar (might already be gone)', { error: err });
+      }
+
+      // 2. Refund Coupons
+      await CouponManager.releaseCoupons(userId, existingCode.couponsUsed);
+
+      // 3. Delete from DB
+      await prisma.polarDiscountCode.delete({
+        where: { id: existingCode.id }
       });
+
+      // Now fall through to generation logic below...
     }
 
     // Get user's coupon status

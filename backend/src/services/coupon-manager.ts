@@ -253,6 +253,63 @@ export class CouponManager {
   }
 
   /**
+   * Refund/Release coupons (e.g. when regenerating a discount code)
+   */
+  static async releaseCoupons(userId: string, count: number): Promise<void> {
+    const { start } = this.getCurrentMonth();
+
+    // Get recently used coupons to restore
+    const coupons = await prisma.coupon.findMany({
+      where: {
+        userId,
+        used: true
+      },
+      orderBy: { usedAt: 'desc' }, // Take most recently used first
+      take: count
+    });
+
+    if (coupons.length < count) {
+      // This might happen if data is out of sync, but we should try to release what we can
+      console.warn(`[CouponManager] Requested release of ${count} coupons but only found ${coupons.length} used.`);
+    }
+
+    const couponIds = coupons.map(c => c.id);
+
+    // Mark as unused
+    if (couponIds.length > 0) {
+      await prisma.coupon.updateMany({
+        where: {
+          id: { in: couponIds }
+        },
+        data: {
+          used: false,
+          usedAt: null
+        }
+      });
+    }
+
+    // Update monthly record (decrement usage)
+    const monthlyRecord = await prisma.monthlyDiscount.findUnique({
+      where: {
+        userId_monthStart: {
+          userId,
+          monthStart: start
+        }
+      }
+    });
+
+    if (monthlyRecord) {
+      await prisma.monthlyDiscount.update({
+        where: { id: monthlyRecord.id },
+        data: {
+          couponsUsed: { decrement: count },
+          discountApplied: { decrement: count * 0.05 }
+        }
+      });
+    }
+  }
+
+  /**
    * Revoke a coupon when referred user churns
    * (Remove one unused coupon from that referral source)
    */
