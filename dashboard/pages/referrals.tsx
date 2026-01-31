@@ -165,6 +165,7 @@ interface DiscountCodeGeneratorProps {
 }
 
 function DiscountCodeGenerator({ availableCoupons }: DiscountCodeGeneratorProps) {
+    const router = useRouter();
     const [couponsToUse, setCouponsToUse] = useState(Math.min(availableCoupons, 10));
     const [loading, setLoading] = useState(false);
     const [discountCode, setDiscountCode] = useState<string | null>(null);
