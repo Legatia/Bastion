@@ -1,13 +1,17 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { Shield, Check, CreditCard, Zap } from 'lucide-react';
+import { Shield, Check, CreditCard, Zap, Copy, Ticket } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import Navbar from '../components/Navbar';
+import { api } from '../lib/api';
 
 interface Plan {
     name: string;
     price: string;
     period: string;
     description: string;
-    features: string[];
+    features: Array<{ text: string; ready: boolean }>;
     highlight: boolean;
     buttonText: string;
     action: 'stripe' | 'polar' | 'sales';
@@ -21,10 +25,10 @@ const PLANS: Plan[] = [
         period: '/mo',
         description: 'Perfect for solopreneurs building their first autonomous agents.',
         features: [
-            '1 Active Agent',
-            'Basic Policy Engine',
-            '7-Day Audit Logs',
-            'Community Support'
+            { text: '1 Active Agent', ready: true },
+            { text: 'Basic Policy Engine', ready: true },
+            { text: '7-Day Audit Logs', ready: true },
+            { text: 'Community Support', ready: true }
         ],
         highlight: false,
         buttonText: 'Start Free Trial',
@@ -37,11 +41,11 @@ const PLANS: Plan[] = [
         period: '/mo',
         description: 'For small teams scaling their agentic workforce.',
         features: [
-            '5 Active Agents',
-            'Advanced Logic (Time/Velocity)',
-            '30-Day Audit Logs',
-            'Slack & Email Alerts',
-            'CSV Exports'
+            { text: '5 Active Agents', ready: true },
+            { text: 'Advanced Logic (Time/Velocity)', ready: false },
+            { text: '30-Day Audit Logs', ready: true },
+            { text: 'Slack & Email Alerts', ready: false },
+            { text: 'CSV Exports', ready: true }
         ],
         highlight: true,
         buttonText: 'Upgrade to Growth',
@@ -54,12 +58,12 @@ const PLANS: Plan[] = [
         period: '/mo',
         description: 'Compliance-ready infrastructure for serious operations.',
         features: [
-            'Unlimited Agents',
-            'Compliance Templates (SOC2)',
-            'Unlimited History',
-            'API Access',
-            'Priority Support',
-            'RBAC (Roles)'
+            { text: 'Unlimited Agents', ready: true },
+            { text: 'Compliance Templates (SOC2)', ready: false },
+            { text: 'Unlimited History', ready: true },
+            { text: 'API Access', ready: true },
+            { text: 'Priority Support', ready: true },
+            { text: 'RBAC (Roles)', ready: false }
         ],
         highlight: false,
         buttonText: 'Upgrade to Pro',
@@ -72,12 +76,12 @@ const PLANS: Plan[] = [
         period: '',
         description: 'Full autonomy for large-scale agent deployments.',
         features: [
-            'Dedicated Instance',
-            'Custom SLAs (99.99%)',
-            '24/7 Dedicated Support',
-            'Self-Hosted Options',
-            'Custom Integrations',
-            'Audit Log Export (SIEM)'
+            { text: 'Dedicated Instance', ready: false },
+            { text: 'Custom SLAs (99.99%)', ready: false },
+            { text: '24/7 Dedicated Support', ready: true },
+            { text: 'Self-Hosted Options', ready: false },
+            { text: 'Custom Integrations', ready: true },
+            { text: 'Audit Log Export (SIEM)', ready: false }
         ],
         highlight: false,
         buttonText: 'Contact Sales',
@@ -85,31 +89,14 @@ const PLANS: Plan[] = [
     }
 ];
 
-import Navbar from '../components/Navbar';
-
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-
 export default function Billing() {
     const router = useRouter();
-    const [discountCode, setDiscountCode] = useState('');
-    const [appliedDiscount, setAppliedDiscount] = useState(false);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
 
     useEffect(() => {
         const key = localStorage.getItem('bastion_api_key');
         setIsLoggedIn(!!key);
-        // Note: Billing page is accessible to view plans, but checkout requires login (already handled)
     }, []);
-
-    const handleApplyDiscount = () => {
-        if (discountCode.trim().toUpperCase() === 'BASTION2024') {
-            setAppliedDiscount(true);
-            alert("Discount code applied: 20% OFF");
-        } else {
-            alert("Invalid discount code");
-        }
-    };
 
     const handleSubscribe = (plan: Plan) => {
         if (plan.action === 'sales') {
@@ -123,14 +110,10 @@ export default function Billing() {
             return;
         }
 
-        // Append discount if applied (mock logic for URL)
-        const finalLink = appliedDiscount ? `${link}?discount=BASTION2024` : link;
-
         if (isLoggedIn) {
-            window.open(finalLink, '_blank');
+            window.open(link, '_blank');
         } else {
-            // Redirect to login with return intent
-            router.push(`/login?redirect=${encodeURIComponent(finalLink)}`);
+            router.push(`/login?redirect=${encodeURIComponent(link)}`);
         }
     };
 
@@ -148,28 +131,8 @@ export default function Billing() {
                     <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>Simple, Transparent Pricing</h1>
                     <p style={{ color: '#889', fontSize: '1.2rem' }}>Secure your agent fleet with an immutable insurance layer.</p>
 
-                    {/* Discount Code Section */}
-                    <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                        <input
-                            type="text"
-                            placeholder="Discount Code"
-                            value={discountCode}
-                            onChange={(e) => setDiscountCode(e.target.value)}
-                            style={{
-                                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                                padding: '0.5rem 1rem', borderRadius: '8px', color: '#fff', outline: 'none'
-                            }}
-                        />
-                        <button
-                            onClick={handleApplyDiscount}
-                            style={{
-                                background: '#3b82f6', color: '#fff', border: 'none',
-                                padding: '0.5rem 1.5rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '600'
-                            }}
-                        >
-                            Apply
-                        </button>
-                    </div>
+                    {/* Discount Code Display */}
+                    {isLoggedIn && <DiscountCodeDisplay />}
                 </header>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '4rem' }}>
@@ -204,8 +167,11 @@ export default function Billing() {
                             <div style={{ marginBottom: '2rem', flex: 1 }}>
                                 {plan.features.map((feature, i) => (
                                     <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '0.6rem', color: '#ccc' }}>
-                                        <Check size={14} color="#10b981" style={{ flexShrink: 0 }} />
-                                        <span style={{ fontSize: '0.85rem' }}>{feature}</span>
+                                        <Check size={14} color={feature.ready ? "#10b981" : "#666"} style={{ flexShrink: 0 }} />
+                                        <span style={{ fontSize: '0.85rem', opacity: feature.ready ? 1 : 0.5 }}>
+                                            {feature.text}
+                                            {!feature.ready && <span style={{ color: '#888', fontSize: '0.75rem', marginLeft: '4px' }}>(Soon)</span>}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
@@ -236,6 +202,95 @@ export default function Billing() {
                 </div>
 
             </main>
+        </div>
+    );
+}
+
+// Discount Code Display Component
+function DiscountCodeDisplay() {
+    const [discountCode, setDiscountCode] = useState<string | null>(null);
+    const [percentage, setPercentage] = useState<number | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        api.get<{
+            code: string;
+            percentage: number;
+        }>('/polar/discount-code')
+            .then(data => {
+                setDiscountCode(data.code);
+                setPercentage(data.percentage);
+            })
+            .catch(() => {
+                // No discount code available - user has no coupons
+            })
+            .finally(() => setLoading(false));
+    }, []);
+
+    const handleCopy = () => {
+        if (discountCode) {
+            navigator.clipboard.writeText(discountCode);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    if (loading || !discountCode) return null;
+
+    return (
+        <div style={{
+            marginTop: '2rem',
+            background: 'linear-gradient(135deg, rgba(34,197,94,0.1) 0%, rgba(16,185,129,0.1) 100%)',
+            border: '1px solid rgba(34,197,94,0.3)',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            maxWidth: '600px',
+            margin: '2rem auto 0'
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem', justifyContent: 'center' }}>
+                <Ticket size={20} color="#22c55e" />
+                <h3 style={{ margin: 0, fontSize: '1rem', color: '#22c55e' }}>
+                    Your Discount Code ({percentage}% OFF)
+                </h3>
+            </div>
+
+            <div style={{
+                background: '#000',
+                border: '1px solid #22c55e',
+                borderRadius: '8px',
+                padding: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem'
+            }}>
+                <code style={{ color: '#22c55e', fontSize: '1.25rem', fontWeight: 'bold' }}>
+                    {discountCode}
+                </code>
+                <button
+                    onClick={handleCopy}
+                    style={{
+                        background: copied ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)',
+                        border: '1px solid #22c55e',
+                        color: '#22c55e',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontWeight: '600',
+                        fontSize: '0.85rem'
+                    }}
+                >
+                    {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                </button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: '#6ee7b7', margin: '0.75rem 0 0', textAlign: 'center' }}>
+                Apply this code at Polar.sh checkout
+            </p>
         </div>
     );
 }
