@@ -94,6 +94,22 @@ app.use(requestLogger); // Log all requests
 // Apply general rate limit to all API routes
 app.use(`/${API_VERSION}`, apiLimiter);
 
+// Root endpoint - API info
+app.get('/', (req: Request, res: Response) => {
+  res.json({
+    name: 'Bastion Protocol API',
+    version: API_VERSION,
+    status: 'healthy',
+    docs: 'https://github.com/your-org/bastion',
+    endpoints: {
+      health: '/health',
+      authorize: `/${API_VERSION}/authorize`,
+      policies: `/${API_VERSION}/policies`,
+      logs: `/${API_VERSION}/logs`,
+    },
+  });
+});
+
 // Health check endpoint (no rate limit)
 app.get('/health', (req: Request, res: Response) => {
   res.json({
