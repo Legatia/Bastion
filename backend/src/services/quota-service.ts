@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 
 // Tier limits configuration
 const TIER_LIMITS: Record<SubscriptionTier, { maxAgents: number; maxDailyChecks: number }> = {
+    TRIAL: { maxAgents: 1, maxDailyChecks: 1000 },
     STARTER: { maxAgents: 1, maxDailyChecks: 1000 },
     GROWTH: { maxAgents: 5, maxDailyChecks: 10000 },
     PRO: { maxAgents: Infinity, maxDailyChecks: 100000 },
@@ -99,12 +100,13 @@ export class QuotaService {
      */
     static async getUsageSummary(userId: string): Promise<{
         tier: string;
+        trialEndsAt: string | null;
         agents: { current: number; max: number };
         dailyChecks: { current: number; max: number };
     }> {
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { tier: true },
+            select: { tier: true, trialEndsAt: true },
         });
 
         if (!user) {
@@ -131,6 +133,7 @@ export class QuotaService {
 
         return {
             tier: user.tier,
+            trialEndsAt: user.trialEndsAt ? user.trialEndsAt.toISOString() : null,
             agents: {
                 current: agentCount,
                 max: limits.maxAgents === Infinity ? -1 : limits.maxAgents, // -1 indicates unlimited

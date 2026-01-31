@@ -1,7 +1,7 @@
 // Authentication Routes
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, SubscriptionTier } from '@prisma/client';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
@@ -108,7 +108,8 @@ router.post('/auth/register', async (req: Request, res: Response) => {
                 password: hashedPassword,
                 name: email.split('@')[0],
                 apiKey: generateSecureApiKey(),
-                tier: 'STARTER',
+                tier: SubscriptionTier.TRIAL,
+                trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days trial
                 referredByCode: referral_code || null,
             },
         });
@@ -192,7 +193,8 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                     password: '', // No password for OAuth users
                     name: googleUser.name || googleUser.email.split('@')[0],
                     apiKey: generateSecureApiKey(),
-                    tier: 'STARTER',
+                    tier: SubscriptionTier.TRIAL,
+                    trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days trial
                     googleId: googleUser.id,
                     referralCode: `ref_${Math.random().toString(36).substring(2, 10)}`,
                 },

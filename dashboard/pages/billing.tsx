@@ -117,6 +117,25 @@ export default function Billing() {
         }
     };
 
+    const [usage, setUsage] = useState<{ tier: string; trialEndsAt: string | null } | null>(null);
+
+    useEffect(() => {
+        if (isLoggedIn) {
+            api.get<any>('/usage')
+                .then(data => setUsage(data))
+                .catch(() => { });
+        }
+    }, [isLoggedIn]);
+
+    const getTrialDaysLeft = () => {
+        if (!usage?.trialEndsAt) return 0;
+        const end = new Date(usage.trialEndsAt);
+        const now = new Date();
+        const diff = end.getTime() - now.getTime();
+        return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    };
+
+
     return (
         <div style={{ minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
             <Head>
@@ -130,6 +149,38 @@ export default function Billing() {
                 <header style={{ textAlign: 'center', marginBottom: '4rem' }}>
                     <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>Simple, Transparent Pricing</h1>
                     <p style={{ color: '#889', fontSize: '1.2rem' }}>Secure your agent fleet with an immutable insurance layer.</p>
+
+                    {/* Trial Banner */}
+                    {usage?.tier === 'TRIAL' && (
+                        <div style={{
+                            marginTop: '2rem',
+                            background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(37,99,235,0.1) 100%)',
+                            border: '1px solid rgba(59,130,246,0.3)',
+                            borderRadius: '12px',
+                            padding: '1rem',
+                            maxWidth: '600px',
+                            margin: '2rem auto 0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '12px'
+                        }}>
+                            <div style={{
+                                width: '32px', height: '32px', borderRadius: '50%', background: '#3b82f6',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff'
+                            }}>
+                                <Zap size={18} fill="currentColor" />
+                            </div>
+                            <div style={{ textAlign: 'left' }}>
+                                <h3 style={{ fontSize: '1rem', margin: 0, color: '#60a5fa' }}>
+                                    Free Trial Active
+                                </h3>
+                                <p style={{ fontSize: '0.9rem', color: '#93c5fd', margin: 0 }}>
+                                    You have <strong>{getTrialDaysLeft()} days left</strong>. Subscribe to keep your agents running.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Discount Code Display */}
                     {isLoggedIn && <DiscountCodeDisplay />}
@@ -188,7 +239,7 @@ export default function Billing() {
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                                 fontSize: '0.9rem'
                             }} onClick={() => handleSubscribe(plan)}>
-                                {plan.buttonText}
+                                {usage?.tier === 'TRIAL' && plan.name === 'Starter' ? 'Subscribe to Starter' : plan.buttonText}
                             </button>
                         </div>
                     ))}
