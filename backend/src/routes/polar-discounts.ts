@@ -23,6 +23,11 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
     const userId = req.user!.id;
     const userEmail = req.user!.email;
 
+    // Get optional couponsToUse parameter (1-10)
+    const requestedCoupons = req.query.couponsToUse
+      ? Math.min(Math.max(parseInt(req.query.couponsToUse as string, 10), 1), 10)
+      : undefined;
+
     // Get current month boundaries
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -73,11 +78,16 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
       });
     }
 
+    // Determine how many coupons to use
+    const couponsToUse = requestedCoupons !== undefined
+      ? Math.min(requestedCoupons, availableCoupons, monthlyUsage.couponsAvailable)
+      : Math.min(availableCoupons, monthlyUsage.couponsAvailable);
+
     // Generate Polar discount code
     const polarDiscount = await PolarService.createMonthlyUserDiscount(
       userId,
       userEmail,
-      availableCoupons,
+      couponsToUse,
       monthlyUsage.couponsAvailable
     );
 
@@ -88,7 +98,7 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
         polarDiscountId: polarDiscount.discount.id,
         code: polarDiscount.code,
         percentage: polarDiscount.percentage,
-        couponsUsed: Math.min(availableCoupons, monthlyUsage.couponsAvailable),
+        couponsUsed: couponsToUse,
         monthStart,
         monthEnd: polarDiscount.expiresAt,
         expiresAt: polarDiscount.expiresAt,

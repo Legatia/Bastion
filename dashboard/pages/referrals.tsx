@@ -132,6 +132,11 @@ export default function Referrals() {
                             </div>
                         </div>
 
+                        {/* Generate Discount Code */}
+                        {couponData && couponData.available_coupons > 0 && (
+                            <DiscountCodeGenerator availableCoupons={couponData.available_coupons} />
+                        )}
+
                         {/* Coupon Info */}
                         {couponData && (
                             <div style={{
@@ -142,7 +147,7 @@ export default function Referrals() {
                                 <ul style={{ color: '#a1a1aa', lineHeight: '1.8', margin: 0, paddingLeft: '1.2rem' }}>
                                     <li>Each paying referral = 1 coupon worth <strong style={{ color: '#fff' }}>5% off</strong></li>
                                     <li>Use up to 10 coupons/month = <strong style={{ color: '#22c55e' }}>50% max discount</strong></li>
-                                    <li>Coupons applied automatically at billing</li>
+                                    <li>Generate Polar discount codes above to use at checkout</li>
                                     <li>This month: <strong style={{ color: '#fff' }}>{couponData.this_month.coupons_used}</strong> coupons used ({couponData.this_month.discount_applied} off)</li>
                                 </ul>
                             </div>
@@ -150,6 +155,222 @@ export default function Referrals() {
                     </div>
                 )}
             </main>
+        </div>
+    );
+}
+
+// Discount Code Generator Component
+interface DiscountCodeGeneratorProps {
+    availableCoupons: number;
+}
+
+function DiscountCodeGenerator({ availableCoupons }: DiscountCodeGeneratorProps) {
+    const [couponsToUse, setCouponsToUse] = useState(Math.min(availableCoupons, 10));
+    const [loading, setLoading] = useState(false);
+    const [discountCode, setDiscountCode] = useState<string | null>(null);
+    const [percentage, setPercentage] = useState<number | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+
+    const maxCoupons = Math.min(availableCoupons, 10);
+
+    const handleGenerate = async () => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await api.get<{
+                code: string;
+                percentage: number;
+                message?: string;
+                isNewCode?: boolean;
+            }>(`/polar/discount-code?couponsToUse=${couponsToUse}`);
+
+            setDiscountCode(response.code);
+            setPercentage(response.percentage);
+        } catch (err: any) {
+            setError(err.message || 'Failed to generate discount code');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCopyCode = () => {
+        if (discountCode) {
+            navigator.clipboard.writeText(discountCode);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    return (
+        <div style={{
+            background: 'linear-gradient(135deg, rgba(34,197,94,0.1) 0%, rgba(16,185,129,0.1) 100%)',
+            border: '1px solid rgba(34,197,94,0.3)',
+            borderRadius: '16px',
+            padding: '2rem'
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1rem' }}>
+                <Ticket size={24} color="#22c55e" />
+                <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Generate Polar Discount Code</h2>
+            </div>
+
+            <p style={{ color: '#a1a1aa', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+                Create a discount code to use at Polar.sh checkout
+            </p>
+
+            {!discountCode ? (
+                <>
+                    <div style={{ marginBottom: '2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                            <label style={{ color: '#fff', fontWeight: '600' }}>
+                                Coupons to Use: {couponsToUse}
+                            </label>
+                            <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                                {couponsToUse * 5}% OFF
+                            </span>
+                        </div>
+
+                        <input
+                            type="range"
+                            min="1"
+                            max={maxCoupons}
+                            value={couponsToUse}
+                            onChange={(e) => setCouponsToUse(parseInt(e.target.value))}
+                            style={{
+                                width: '100%',
+                                height: '8px',
+                                background: `linear-gradient(to right, #22c55e 0%, #22c55e ${(couponsToUse / maxCoupons) * 100}%, rgba(255,255,255,0.1) ${(couponsToUse / maxCoupons) * 100}%, rgba(255,255,255,0.1) 100%)`,
+                                borderRadius: '4px',
+                                outline: 'none',
+                                cursor: 'pointer'
+                            }}
+                        />
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.85rem', color: '#888' }}>
+                            <span>1 coupon (5%)</span>
+                            <span>{maxCoupons} coupons ({maxCoupons * 5}%)</span>
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div style={{
+                            background: 'rgba(239,68,68,0.1)',
+                            border: '1px solid rgba(239,68,68,0.3)',
+                            borderRadius: '8px',
+                            padding: '1rem',
+                            marginBottom: '1rem',
+                            color: '#ef4444'
+                        }}>
+                            {error}
+                        </div>
+                    )}
+
+                    <button
+                        onClick={handleGenerate}
+                        disabled={loading}
+                        style={{
+                            width: '100%',
+                            background: loading ? 'rgba(34,197,94,0.5)' : '#22c55e',
+                            border: 'none',
+                            color: '#000',
+                            padding: '1rem 2rem',
+                            borderRadius: '8px',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontWeight: 'bold',
+                            fontSize: '1rem',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        {loading ? 'Generating...' : 'Generate Discount Code'}
+                    </button>
+                </>
+            ) : (
+                <div>
+                    <div style={{
+                        background: '#000',
+                        border: '1px solid #22c55e',
+                        borderRadius: '8px',
+                        padding: '1.5rem',
+                        marginBottom: '1rem'
+                    }}>
+                        <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                            <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '0.5rem' }}>YOUR DISCOUNT CODE</p>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+                                <code style={{ color: '#22c55e', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                                    {discountCode}
+                                </code>
+                                <button
+                                    onClick={handleCopyCode}
+                                    style={{
+                                        background: copied ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)',
+                                        border: '1px solid #22c55e',
+                                        color: '#22c55e',
+                                        padding: '8px 16px',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontWeight: '600',
+                                        fontSize: '0.85rem'
+                                    }}
+                                >
+                                    {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                                </button>
+                            </div>
+                            <p style={{ color: '#22c55e', fontSize: '1.25rem', fontWeight: 'bold', marginTop: '0.5rem' }}>
+                                {percentage}% OFF
+                            </p>
+                        </div>
+                    </div>
+
+                    <div style={{
+                        background: 'rgba(34,197,94,0.1)',
+                        borderRadius: '8px',
+                        padding: '1rem',
+                        marginBottom: '1rem'
+                    }}>
+                        <p style={{ color: '#6ee7b7', fontSize: '0.9rem', margin: 0 }}>
+                            ✅ <strong>Success!</strong> Use this code at Polar.sh checkout to get {percentage}% off your subscription.
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={() => window.open('https://polar.sh/bastion', '_blank')}
+                        style={{
+                            width: '100%',
+                            background: '#fff',
+                            border: 'none',
+                            color: '#000',
+                            padding: '1rem 2rem',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            fontSize: '1rem',
+                            marginBottom: '0.75rem'
+                        }}
+                    >
+                        Go to Polar.sh Checkout →
+                    </button>
+
+                    <button
+                        onClick={() => setDiscountCode(null)}
+                        style={{
+                            width: '100%',
+                            background: 'transparent',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            color: '#fff',
+                            padding: '0.75rem',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        Generate New Code
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
