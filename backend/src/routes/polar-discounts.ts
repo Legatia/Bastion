@@ -71,18 +71,33 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
         logger.warn('[POLAR] Failed to delete old discount from Polar (might already be gone)', { error: err });
       }
 
-      // 2. Refund Coupons
-      await CouponManager.releaseCoupons(userId, existingCode.couponsUsed);
+      // 2. Refund Coupons (mark them as unused again)
+      const couponsToRelease = await prisma.coupon.findMany({
+        where: {
+          userId,
+          used: true
+        },
+        orderBy: { usedAt: 'desc' },
+        take: existingCode.couponsUsed
+      });
+
+      await prisma.coupon.updateMany({
+        where: {
+          id: { in: couponsToRelease.map(c => c.id) }
+        },
+        data: {
+          used: false,
+          usedAt: null
+        }
+      });
 
       // 3. Delete from DB
       await prisma.polarDiscountCode.delete({
-        // 3. Delete from DB
-        await prisma.polarDiscountCode.delete({
-          where: { id: existingCode.id }
-        });
+        where: { id: existingCode.id }
+      });
 
-        // Now fall through to generation logic below...
-      }
+      // Now fall through to generation logic below...
+    }
 
     // Get user's coupon status (Fetch AFTER potentially releasing coupons)
     const [availableCoupons, monthlyUsage] = await Promise.all([
@@ -135,8 +150,25 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
         },
       });
 
-      // Burn the coupons immediately so they don't show as available
-      await CouponManager.burnCoupons(userId, savedCode.couponsUsed);
+      // Mark the coupons as used immediately so they don't show as available
+      const couponsToMark = await prisma.coupon.findMany({
+        where: {
+          userId,
+          used: false
+        },
+        orderBy: { createdAt: 'asc' },
+        take: savedCode.couponsUsed
+      });
+
+      await prisma.coupon.updateMany({
+        where: {
+          id: { in: couponsToMark.map(c => c.id) }
+        },
+        data: {
+          used: true,
+          usedAt: new Date()
+        }
+      });
 
       logger.info('[POLAR] Generated discount code', { userEmail, code: polarDiscount.code, percentage: polarDiscount.percentage });
 
