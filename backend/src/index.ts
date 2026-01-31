@@ -28,6 +28,7 @@ import authRoutes from './routes/auth';
 import webhookRoutes from './routes/webhooks';
 import referralRoutes from './routes/referrals';
 import usageRoutes from './routes/usage';
+import polarDiscountRoutes from './routes/polar-discounts';
 
 // Initialize Express app
 const app = express();
@@ -119,6 +120,7 @@ app.use(`/${API_VERSION}`, authRoutes);
 app.use(`/${API_VERSION}`, webhookRoutes);
 app.use(`/${API_VERSION}`, referralRoutes);
 app.use(`/${API_VERSION}`, usageRoutes);
+app.use(`/${API_VERSION}`, polarDiscountRoutes);
 
 // CLI-friendly endpoint aliases
 // /v1/audit -> /v1/logs

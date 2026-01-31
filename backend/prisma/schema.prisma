@@ -44,6 +44,7 @@ model User {
 
   coupons            Coupon[]
   monthlyDiscounts   MonthlyDiscount[]
+  polarDiscountCodes PolarDiscountCode[]
   referralsMade      Referral[] @relation("Referrer")
   referralReceived   Referral?  @relation("Referred")
 
@@ -263,4 +264,32 @@ model WebhookEvent {
 
   @@index([eventId])
   @@map("webhook_events")
+}
+
+// Polar.sh Discount Code Tracking
+model PolarDiscountCode {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Polar discount details
+  polarDiscountId String    @unique  // Polar's discount ID
+  code            String    @unique  // The discount code (e.g., "BASTION1A2B3C4D")
+  percentage      Int                // Discount percentage (5-50)
+  couponsUsed     Int                // Number of Bastion coupons represented
+
+  // Validity period
+  monthStart      DateTime           // Month this discount is for
+  monthEnd        DateTime           // Expiration date
+  expiresAt       DateTime           // Same as monthEnd
+
+  // Redemption tracking
+  redeemed        Boolean   @default(false)
+  redeemedAt      DateTime?
+
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, monthStart])
+  @@index([code])
+  @@map("polar_discount_codes")
 }
