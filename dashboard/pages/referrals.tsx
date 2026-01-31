@@ -40,7 +40,7 @@ export default function Referrals() {
         // Don't set loading true here to avoid flickering on refresh
 
         Promise.all([
-            api.get<ReferralData>('/referrals/my-link'), // Use correct endpoint from previous view
+            api.get<ReferralData>('/referrals/code'), // Reverting to correct endpoint
             api.get<CouponData>('/referrals/coupons')
         ])
             .then(([refData, coupData]) => {
