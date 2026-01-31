@@ -173,6 +173,61 @@ export class CouponManager {
   }
 
   /**
+   * Explicitly burn a specific number of coupons (e.g. when generating a discount code)
+   */
+  static async burnCoupons(userId: string, count: number): Promise<void> {
+    const { start } = this.getCurrentMonth();
+
+    // Get available coupons to burn
+    const coupons = await prisma.coupon.findMany({
+      where: {
+        userId,
+        used: false
+      },
+      orderBy: { createdAt: 'asc' },
+      take: count
+    });
+
+    if (coupons.length < count) {
+      throw new Error(`Not enough coupons available. Requested: ${count}, Available: ${coupons.length}`);
+    }
+
+    const couponIds = coupons.map(c => c.id);
+
+    // Mark as used
+    await prisma.coupon.updateMany({
+      where: {
+        id: { in: couponIds }
+      },
+      data: {
+        used: true,
+        usedAt: new Date()
+      }
+    });
+
+    // Update monthly record
+    await prisma.monthlyDiscount.upsert({
+      where: {
+        userId_monthStart: {
+          userId,
+          monthStart: start
+        }
+      },
+      update: {
+        couponsUsed: { increment: count },
+        discountApplied: { increment: count * 0.05 }
+      },
+      create: {
+        userId,
+        monthStart: start,
+        monthEnd: this.getCurrentMonth().end,
+        couponsUsed: count,
+        discountApplied: count * 0.05
+      }
+    });
+  }
+
+  /**
    * Award a coupon for successful referral
    */
   static async awardCoupon(

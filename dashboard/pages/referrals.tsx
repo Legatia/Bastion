@@ -30,15 +30,17 @@ export default function Referrals() {
     const [copied, setCopied] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
+    const fetchData = () => {
         const key = localStorage.getItem('bastion_api_key');
         if (!key) {
             router.push('/login');
             return;
         }
 
+        // Don't set loading true here to avoid flickering on refresh
+
         Promise.all([
-            api.get<ReferralData>('/referrals/code'),
+            api.get<ReferralData>('/referrals/my-link'), // Use correct endpoint from previous view
             api.get<CouponData>('/referrals/coupons')
         ])
             .then(([refData, coupData]) => {
@@ -47,6 +49,10 @@ export default function Referrals() {
             })
             .catch(err => console.error("Failed to fetch referral data", err))
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        fetchData();
     }, []);
 
     const handleCopy = () => {
@@ -134,7 +140,10 @@ export default function Referrals() {
 
                         {/* Generate Discount Code */}
                         {couponData && couponData.available_coupons > 0 && (
-                            <DiscountCodeGenerator availableCoupons={couponData.available_coupons} />
+                            <DiscountCodeGenerator
+                                availableCoupons={couponData.available_coupons}
+                                onSuccess={fetchData}
+                            />
                         )}
 
                         {/* Coupon Info */}
@@ -162,9 +171,10 @@ export default function Referrals() {
 // Discount Code Generator Component
 interface DiscountCodeGeneratorProps {
     availableCoupons: number;
+    onSuccess: () => void;
 }
 
-function DiscountCodeGenerator({ availableCoupons }: DiscountCodeGeneratorProps) {
+function DiscountCodeGenerator({ availableCoupons, onSuccess }: DiscountCodeGeneratorProps) {
     const router = useRouter();
     const [couponsToUse, setCouponsToUse] = useState(Math.min(availableCoupons, 10));
     const [loading, setLoading] = useState(false);
@@ -189,6 +199,7 @@ function DiscountCodeGenerator({ availableCoupons }: DiscountCodeGeneratorProps)
 
             setDiscountCode(response.code);
             setPercentage(response.percentage);
+            onSuccess(); // Refresh parent data
         } catch (err: any) {
             setError(err.message || 'Failed to generate discount code');
         } finally {

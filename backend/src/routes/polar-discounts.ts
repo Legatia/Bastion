@@ -105,6 +105,9 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
       },
     });
 
+    // Burn the coupons immediately so they don't show as available
+    await CouponManager.burnCoupons(userId, savedCode.couponsUsed);
+
     logger.info('[POLAR] Generated discount code', { userEmail, code: polarDiscount.code, percentage: polarDiscount.percentage });
 
     res.json({
@@ -245,7 +248,7 @@ router.post('/polar/webhook/redemption', async (req: Request, res: Response) => 
     });
 
     // Mark the coupons as used
-    await CouponManager.applyCoupons(discountCode.userId, 0); // This will mark oldest coupons as used
+    // await CouponManager.applyCoupons(discountCode.userId, 0); // Coupons are now burnt on generation, not redemption
 
     logger.info('[POLAR] Discount code redeemed', { code: discountCode.code, userId: discountCode.userId });
 
