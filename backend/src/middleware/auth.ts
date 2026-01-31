@@ -2,6 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { logger } from './logger';
 
 const prisma = new PrismaClient();
 
@@ -63,7 +64,7 @@ export async function authenticateApiKey(
     req.user = user;
     next();
   } catch (error) {
-    console.error('[AUTH] Authentication error:', error);
+    logger.error('[AUTH] Authentication error:', { error: error instanceof Error ? error.message : error });
 
     // Don't expose internal errors
     res.status(500).json({

@@ -4,6 +4,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateApiKey } from '../middleware/auth';
+import { logger } from '../middleware/logger';
 import { PolarService } from '../services/polar-service';
 import { CouponManager } from '../services/coupon-manager';
 
@@ -94,7 +95,7 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
       },
     });
 
-    console.log(`[POLAR] ✓ Generated discount code for ${userEmail}: ${polarDiscount.code} (${polarDiscount.percentage}%)`);
+    logger.info('[POLAR] Generated discount code', { userEmail, code: polarDiscount.code, percentage: polarDiscount.percentage });
 
     res.json({
       code: savedCode.code,
@@ -107,7 +108,7 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
       message: `Apply code "${savedCode.code}" at Polar checkout to get ${savedCode.percentage}% off!`,
     });
   } catch (error: any) {
-    console.error('[POLAR] Error generating discount code:', error);
+    logger.error('[POLAR] Error generating discount code:', { error: error.message });
 
     // Handle Polar API errors
     if (error.message?.includes('Polar API error')) {
@@ -175,11 +176,11 @@ router.get('/polar/discount-status', authenticateApiKey, async (req: Request, re
       },
       polarDiscount: existingCode
         ? {
-            code: existingCode.code,
-            percentage: existingCode.percentage,
-            expiresAt: existingCode.expiresAt,
-            redeemed: existingCode.redeemed,
-          }
+          code: existingCode.code,
+          percentage: existingCode.percentage,
+          expiresAt: existingCode.expiresAt,
+          redeemed: existingCode.redeemed,
+        }
         : null,
       potentialDiscount: {
         coupons: potentialCoupons,
@@ -191,7 +192,7 @@ router.get('/polar/discount-status', authenticateApiKey, async (req: Request, re
       },
     });
   } catch (error: any) {
-    console.error('[POLAR] Error fetching discount status:', error);
+    logger.error('[POLAR] Error fetching discount status:', { error: error.message });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch discount status',
@@ -220,7 +221,7 @@ router.post('/polar/webhook/redemption', async (req: Request, res: Response) => 
     });
 
     if (!discountCode) {
-      console.warn(`[POLAR] Discount code not found: ${polar_discount_id}`);
+      logger.warn('[POLAR] Discount code not found:', { polar_discount_id });
       return res.status(404).json({ error: 'Discount code not found' });
     }
 
@@ -236,11 +237,11 @@ router.post('/polar/webhook/redemption', async (req: Request, res: Response) => 
     // Mark the coupons as used
     await CouponManager.applyCoupons(discountCode.userId, 0); // This will mark oldest coupons as used
 
-    console.log(`[POLAR] ✓ Discount code redeemed: ${discountCode.code} by user ${discountCode.userId}`);
+    logger.info('[POLAR] Discount code redeemed', { code: discountCode.code, userId: discountCode.userId });
 
     res.json({ success: true });
   } catch (error: any) {
-    console.error('[POLAR] Error processing redemption webhook:', error);
+    logger.error('[POLAR] Error processing redemption webhook:', { error: error.message });
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

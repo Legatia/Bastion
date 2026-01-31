@@ -2,6 +2,7 @@
 // Handles discount creation and checkout session management
 
 import crypto from 'crypto';
+import { logger } from '../middleware/logger';
 
 interface PolarDiscount {
   id: string;
@@ -84,7 +85,7 @@ export class PolarService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[POLAR] API Error (${response.status}):`, errorText);
+      logger.error(`[POLAR] API Error (${response.status}):`, { error: errorText });
       throw new Error(`Polar API error: ${response.status} - ${errorText}`);
     }
 
@@ -130,7 +131,7 @@ export class PolarService {
     if (params.max_redemptions) body.max_redemptions = params.max_redemptions;
     if (params.products) body.products = params.products;
 
-    console.log('[POLAR] Creating discount:', { name: params.name, code: params.code, type: params.type });
+    logger.info('[POLAR] Creating discount:', { name: params.name, code: params.code, type: params.type });
 
     return this.request<PolarDiscount>('POST', '/discounts/', body);
   }
@@ -147,7 +148,7 @@ export class PolarService {
    */
   static async deleteDiscount(discountId: string): Promise<void> {
     await this.request<void>('DELETE', `/discounts/${discountId}`);
-    console.log('[POLAR] Deleted discount:', discountId);
+    logger.info('[POLAR] Deleted discount:', { discountId });
   }
 
   /**
@@ -209,7 +210,7 @@ export class PolarService {
       max_redemptions: 1, // Can only be used once
     });
 
-    console.log(`[POLAR] ✓ Created ${discountPercent}% discount code for ${userEmail}: ${code}`);
+    logger.info(`[POLAR] Created discount code`, { userEmail, code, discountPercent });
 
     return {
       discount,
@@ -252,7 +253,7 @@ export class PolarService {
       body.metadata = params.metadata;
     }
 
-    console.log('[POLAR] Creating checkout session');
+    logger.info('[POLAR] Creating checkout session');
 
     return this.request<any>('POST', '/checkouts/', body);
   }
@@ -267,7 +268,7 @@ export class PolarService {
       await this.request<any>('GET', '/discounts/?limit=1');
       return true;
     } catch (error) {
-      console.error('[POLAR] Health check failed:', error);
+      logger.error('[POLAR] Health check failed:', { error: error instanceof Error ? error.message : error });
       return false;
     }
   }

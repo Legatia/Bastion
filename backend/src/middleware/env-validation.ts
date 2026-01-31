@@ -1,0 +1,73 @@
+// Environment Variable Validation
+// Validates required env vars on startup to fail fast
+
+import { logger } from './logger';
+
+interface EnvConfig {
+    required: string[];
+    optional: string[];
+}
+
+const envConfig: EnvConfig = {
+    required: [
+        'DATABASE_URL',
+        'JWT_SECRET',
+    ],
+    optional: [
+        'PORT',
+        'NODE_ENV',
+        'LOG_LEVEL',
+        'FRONTEND_URL',
+        'ALLOWED_ORIGINS',
+        'POLAR_API_KEY',
+        'POLAR_ORGANIZATION_ID',
+        'POLAR_WEBHOOK_SECRET',
+    ],
+};
+
+export function validateEnv(): void {
+    const missing: string[] = [];
+    const warnings: string[] = [];
+
+    // Check required variables
+    for (const envVar of envConfig.required) {
+        if (!process.env[envVar]) {
+            missing.push(envVar);
+        }
+    }
+
+    // Warn about recommended but missing optional vars in production
+    if (process.env.NODE_ENV === 'production') {
+        const productionRequired = ['POLAR_API_KEY', 'POLAR_ORGANIZATION_ID', 'POLAR_WEBHOOK_SECRET'];
+        for (const envVar of productionRequired) {
+            if (!process.env[envVar]) {
+                warnings.push(envVar);
+            }
+        }
+    }
+
+    // Log warnings
+    if (warnings.length > 0) {
+        logger.warn('Missing recommended environment variables for production:', { variables: warnings });
+    }
+
+    // Fail if required vars are missing
+    if (missing.length > 0) {
+        logger.error('Missing required environment variables:', { variables: missing });
+        throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    }
+
+    // Validate JWT_SECRET strength in production
+    if (process.env.NODE_ENV === 'production') {
+        const jwtSecret = process.env.JWT_SECRET || '';
+        if (jwtSecret.length < 32) {
+            logger.warn('JWT_SECRET should be at least 32 characters for production security');
+        }
+        if (jwtSecret.includes('your') || jwtSecret.includes('secret') || jwtSecret.includes('change')) {
+            logger.error('JWT_SECRET appears to be a placeholder value. Use a strong random secret in production.');
+            throw new Error('JWT_SECRET is not secure for production');
+        }
+    }
+
+    logger.info('✓ Environment validation passed');
+}

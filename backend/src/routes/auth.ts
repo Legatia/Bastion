@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -63,7 +64,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
         if (error instanceof z.ZodError) {
             return res.status(400).json({ error: 'Invalid request', details: error.errors });
         }
-        console.error('Login error:', error);
+        logger.error('Login error:', { error: error.message });
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
@@ -123,7 +124,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
                 }
             });
 
-            console.log(`✓ User ${email} signed up with referral code ${referral_code}`);
+            logger.info('User signed up with referral', { email, referral_code });
         }
 
         res.json({
@@ -141,7 +142,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
         if (error instanceof z.ZodError) {
             return res.status(400).json({ error: 'Invalid request', details: error.errors });
         }
-        console.error('Register error:', error);
+        logger.error('Register error:', { error: error.message });
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
@@ -196,7 +197,7 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                     referralCode: `ref_${Math.random().toString(36).substring(2, 10)}`,
                 },
             });
-            console.log(`✓ New user created via Google OAuth: ${googleUser.email}`);
+            logger.info('New user created via Google OAuth', { email: googleUser.email });
         } else if (!user.googleId) {
             // Link Google account to existing user
             user = await prisma.user.update({
@@ -216,7 +217,7 @@ router.post('/auth/google', async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error('Google auth error:', error);
+        logger.error('Google auth error:', { error: error.message });
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });

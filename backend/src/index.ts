@@ -16,7 +16,11 @@ dotenv.config();
 
 // Import middleware
 import { requestLogger, logger } from './middleware/logger';
+import { validateEnv } from './middleware/env-validation';
 import { apiLimiter, authLimiter, webhookLimiter, authorizeLimiter, policyLimiter } from './middleware/rate-limit';
+
+// Validate environment variables
+validateEnv();
 
 // Import routes
 import authorizeRoutes from './routes/authorize';

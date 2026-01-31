@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { CouponManager } from '../services/coupon-manager';
+import { logger } from '../middleware/logger';
 import crypto from 'crypto';
 
 const router = Router();
@@ -13,7 +14,7 @@ function verifyWebhookSignature(payload: string, signature: string): boolean {
     const secret = process.env.POLAR_WEBHOOK_SECRET;
 
     if (!secret) {
-        console.error('[SECURITY] POLAR_WEBHOOK_SECRET not configured!');
+        logger.error('[SECURITY] POLAR_WEBHOOK_SECRET not configured!');
         return false;
     }
 
@@ -48,12 +49,12 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
         const payload = JSON.stringify(req.body);
 
         if (!signature) {
-            console.warn('[SECURITY] Webhook received without signature');
+            logger.warn('[SECURITY] Webhook received without signature');
             return res.status(401).json({ error: 'Missing webhook signature' });
         }
 
         if (!verifyWebhookSignature(payload, signature)) {
-            console.warn('[SECURITY] Invalid webhook signature');
+            logger.warn('[SECURITY] Invalid webhook signature');
             return res.status(401).json({ error: 'Invalid webhook signature' });
         }
 
@@ -61,7 +62,7 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
 
         // 2. Validate event structure
         if (!event.id || !event.type) {
-            console.warn('[WEBHOOK] Malformed event - missing id or type');
+            logger.warn('[WEBHOOK] Malformed event - missing id or type');
             return res.status(400).json({ error: 'Invalid event format' });
         }
 
@@ -71,7 +72,7 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
         });
 
         if (existingEvent) {
-            console.log(`[WEBHOOK] Duplicate event ${event.id} ignored (already processed)`);
+            logger.info('[WEBHOOK] Duplicate event ignored', { eventId: event.id });
             return res.json({ received: true, duplicate: true });
         }
 
@@ -82,7 +83,7 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
             const ageMs = now - eventTime;
 
             if (ageMs > 5 * 60 * 1000) {
-                console.warn(`[WEBHOOK] Event ${event.id} too old (${ageMs}ms)`);
+                logger.warn('[WEBHOOK] Event too old', { eventId: event.id, ageMs });
                 return res.status(400).json({ error: 'Event expired' });
             }
         }
@@ -95,14 +96,14 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
             }
         });
 
-        console.log(`[WEBHOOK] Processing event ${event.id} (${event.type})`);
+        logger.info('[WEBHOOK] Processing event', { eventId: event.id, type: event.type });
 
         // 6. Process event based on type
         if (event.type === 'subscription.created') {
             const { user_email, tier_name } = event.data || {};
 
             if (!user_email || !tier_name) {
-                console.warn('[WEBHOOK] Missing user_email or tier_name');
+                logger.warn('[WEBHOOK] Missing user_email or tier_name');
                 return res.status(400).json({ error: 'Missing required fields' });
             }
 
@@ -111,11 +112,11 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
             const normalizedTier = tier_name.toUpperCase();
 
             if (!validTiers.includes(normalizedTier)) {
-                console.warn(`[WEBHOOK] Invalid tier: ${tier_name}`);
+                logger.warn('[WEBHOOK] Invalid tier', { tier_name });
                 return res.status(400).json({ error: 'Invalid tier' });
             }
 
-            console.log(`[WEBHOOK] New subscription: ${user_email} → ${normalizedTier}`);
+            logger.info('[WEBHOOK] New subscription', { user_email, tier: normalizedTier });
 
             const user = await prisma.user.update({
                 where: { email: user_email },
@@ -140,7 +141,7 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
                 // Award coupon to referrer
                 await CouponManager.awardCoupon(referral.referrerId, referral.id);
 
-                console.log(`[WEBHOOK] ✓ Coupon awarded to referrer for ${user_email}`);
+                logger.info('[WEBHOOK] Coupon awarded to referrer', { user_email });
             }
         }
 
@@ -149,7 +150,7 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
             const { user_email, tier_name } = event.data || {};
 
             if (!user_email || !tier_name) {
-                console.warn('[WEBHOOK] Missing user_email or tier_name');
+                logger.warn('[WEBHOOK] Missing user_email or tier_name');
                 return res.status(400).json({ error: 'Missing required fields' });
             }
 
@@ -157,11 +158,11 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
             const normalizedTier = tier_name.toUpperCase();
 
             if (!validTiers.includes(normalizedTier)) {
-                console.warn(`[WEBHOOK] Invalid tier: ${tier_name}`);
+                logger.warn('[WEBHOOK] Invalid tier', { tier_name });
                 return res.status(400).json({ error: 'Invalid tier' });
             }
 
-            console.log(`[WEBHOOK] Updating subscription: ${user_email} → ${normalizedTier}`);
+            logger.info('[WEBHOOK] Updating subscription', { user_email, tier: normalizedTier });
 
             await prisma.user.update({
                 where: { email: user_email },
@@ -174,11 +175,11 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
             const { user_email } = event.data || {};
 
             if (!user_email) {
-                console.warn('[WEBHOOK] Missing user_email');
+                logger.warn('[WEBHOOK] Missing user_email');
                 return res.status(400).json({ error: 'Missing user_email' });
             }
 
-            console.log(`[WEBHOOK] Subscription cancelled: ${user_email}`);
+            logger.info('[WEBHOOK] Subscription cancelled', { user_email });
 
             const user = await prisma.user.findUnique({
                 where: { email: user_email }
@@ -203,14 +204,14 @@ router.post('/webhooks/polar', async (req: Request, res: Response) => {
                     // Remove one unused coupon from referrer
                     await CouponManager.revokeCoupon(referral.referrerId, referral.id);
 
-                    console.log(`[WEBHOOK] ✓ Coupon revoked from referrer for ${user_email}`);
+                    logger.info('[WEBHOOK] Coupon revoked from referrer', { user_email });
                 }
             }
         }
 
         res.json({ received: true });
     } catch (error: any) {
-        console.error('[WEBHOOK] Processing error:', error.message);
+        logger.error('[WEBHOOK] Processing error:', { error: error.message });
 
         // Don't expose internal errors to webhook sender
         res.status(500).json({
