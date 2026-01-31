@@ -13,19 +13,11 @@
         },
         {
             "src": "/v1/(.*)",
-            "dest": "src/index.ts",
-            "headers": {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, X-API-Key, Authorization"
-            }
+            "dest": "src/index.ts"
         },
         {
             "src": "/health",
-            "dest": "src/index.ts",
-            "headers": {
-                "Access-Control-Allow-Origin": "*"
-            }
+            "dest": "src/index.ts"
         }
     ]
 }
