@@ -135,8 +135,9 @@ model ActionLog {
   policyId    String?
 
   // Action details
-  actionType  String   // e.g., "http_request", "file_write", "subprocess"
-  actionData  Json     // Full action payload
+  actionType      String   // e.g., "http_request", "file_write", "subprocess"
+  actionData      Json?    // Full action payload (plain, if not encrypted)
+  encryptedData   String?  // Encrypted action payload (if encryption enabled)
 
   // Decision
   decision    Decision
@@ -251,4 +252,15 @@ model MonthlyDiscount {
 
   @@unique([userId, monthStart])
   @@map("monthly_discounts")
+}
+
+// Webhook Event Tracking (for idempotency)
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique  // From external provider (Polar, etc.)
+  type        String
+  processedAt DateTime @default(now())
+
+  @@index([eventId])
+  @@map("webhook_events")
 }

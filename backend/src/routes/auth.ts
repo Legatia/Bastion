@@ -4,9 +4,19 @@ import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+/**
+ * Generate cryptographically secure API key
+ */
+function generateSecureApiKey(): string {
+    const randomBytes = crypto.randomBytes(24); // 192 bits of entropy
+    const b64 = randomBytes.toString('base64url'); // URL-safe base64
+    return `bst_live_${b64}`;
+}
 
 const loginSchema = z.object({
     email: z.string().email(),
@@ -25,7 +35,10 @@ router.post('/auth/login', async (req: Request, res: Response) => {
             where: { email },
         });
 
+        // Use constant-time check to prevent timing attacks
         if (!user) {
+            // Still hash to maintain constant time even when user doesn't exist
+            await bcrypt.compare(password, '$2a$10$invalidhashxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
@@ -93,7 +106,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
                 email,
                 password: hashedPassword,
                 name: email.split('@')[0],
-                apiKey: `bst_live_${Math.random().toString(36).substring(2, 18)}`,
+                apiKey: generateSecureApiKey(),
                 tier: 'STARTER',
                 referredByCode: referral_code || null,
             },
@@ -177,7 +190,7 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                     email: googleUser.email,
                     password: '', // No password for OAuth users
                     name: googleUser.name || googleUser.email.split('@')[0],
-                    apiKey: `bst_live_${Math.random().toString(36).substring(2, 18)}`,
+                    apiKey: generateSecureApiKey(),
                     tier: 'STARTER',
                     googleId: googleUser.id,
                     referralCode: `ref_${Math.random().toString(36).substring(2, 10)}`,

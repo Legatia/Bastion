@@ -16,6 +16,7 @@ dotenv.config();
 
 // Import middleware
 import { requestLogger, logger } from './middleware/logger';
+import { apiLimiter, authLimiter, webhookLimiter, authorizeLimiter, policyLimiter } from './middleware/rate-limit';
 
 // Import routes
 import authorizeRoutes from './routes/authorize';
@@ -36,29 +37,63 @@ const API_VERSION = process.env.API_VERSION || 'v1';
 // Initialize Prisma
 const prisma = new PrismaClient();
 
+// CORS Configuration - Whitelist specific origins
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL,
+  process.env.ALLOWED_ORIGINS?.split(','),
+  process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : null,
+  process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : null,
+].flat().filter(Boolean) as string[];
+
+logger.info(`CORS allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
+
 // Middleware
-app.use(helmet()); // Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+}));
+
 app.use(cors({
-  origin: true, // Reflects the request origin, allowing any origin with credentials
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, curl, server-to-server)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      logger.warn(`[SECURITY] Rejected CORS request from unauthorized origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization'],
+  maxAge: 86400, // 24 hours
 }));
-
-// Handle preflight OPTIONS requests explicitly (required for Vercel)
-app.options('*', (req: Request, res: Response) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
-});
 
 app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger); // Log all requests
 
-// Health check endpoint
+// Apply general rate limit to all API routes
+app.use(`/${API_VERSION}`, apiLimiter);
+
+// Health check endpoint (no rate limit)
 app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
@@ -66,6 +101,13 @@ app.get('/health', (req: Request, res: Response) => {
     version: API_VERSION,
   });
 });
+
+// Apply specific rate limiters to sensitive endpoints
+app.use(`/${API_VERSION}/auth/login`, authLimiter);
+app.use(`/${API_VERSION}/auth/register`, authLimiter);
+app.use(`/${API_VERSION}/webhooks`, webhookLimiter);
+app.use(`/${API_VERSION}/authorize`, authorizeLimiter);
+app.use(`/${API_VERSION}/policies`, policyLimiter);
 
 // API routes
 app.use(`/${API_VERSION}`, authorizeRoutes);

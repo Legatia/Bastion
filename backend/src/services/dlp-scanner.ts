@@ -200,6 +200,10 @@ export const DLP_PATTERNS: Record<string, DLPPattern> = {
  * DLP Scanner Class
  */
 export class DLPScanner {
+  // Security limits to prevent ReDoS and resource exhaustion
+  private static readonly MAX_CONTENT_SIZE = 1024 * 1024; // 1MB
+  private static readonly SCAN_TIMEOUT = 5000; // 5 seconds
+
   /**
    * Scan content for sensitive data
    */
@@ -217,8 +221,19 @@ export class DLPScanner {
       };
     }
 
+    // Enforce content size limit to prevent resource exhaustion
+    if (content.length > this.MAX_CONTENT_SIZE) {
+      console.warn(`[DLP] Content too large: ${content.length} bytes (max: ${this.MAX_CONTENT_SIZE})`);
+      return {
+        blocked: true,
+        matches: [],
+        summary: `Content too large (${content.length} bytes). Maximum: ${this.MAX_CONTENT_SIZE} bytes.`,
+      };
+    }
+
     const matches: DLPMatch[] = [];
     let blocked = false;
+    const startTime = Date.now();
 
     // Determine which patterns to check
     const patternsToCheck = enabledPatterns
@@ -227,8 +242,19 @@ export class DLPScanner {
         )
       : Object.entries(DLP_PATTERNS);
 
-    // Scan each pattern
+    // Scan each pattern with timeout protection
     for (const [type, config] of patternsToCheck) {
+      // Check for timeout to prevent ReDoS
+      const elapsedMs = Date.now() - startTime;
+      if (elapsedMs > this.SCAN_TIMEOUT) {
+        console.warn(`[DLP] Scan timeout after ${elapsedMs}ms`);
+        return {
+          blocked: true,
+          matches,
+          summary: `Scan timeout - content too complex. Scanned ${matches.length} patterns before timeout.`,
+        };
+      }
+
       // Filter by severity if specified
       if (severity && this.getSeverityLevel(config.severity) < this.getSeverityLevel(severity)) {
         continue;

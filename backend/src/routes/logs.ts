@@ -3,6 +3,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateApiKey } from '../middleware/auth';
+import { EncryptionService } from '../services/encryption-service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -17,6 +18,7 @@ const prisma = new PrismaClient();
  *   - agent_id: filter by agent
  *   - from: start date (ISO string)
  *   - to: end date (ISO string)
+ *   - decrypt: boolean (default false) - decrypt action data using user's API key
  */
 router.get('/logs', authenticateApiKey, async (req: Request, res: Response) => {
   try {
@@ -31,6 +33,7 @@ router.get('/logs', authenticateApiKey, async (req: Request, res: Response) => {
     const agentId = req.query.agent_id as string | undefined;
     const from = req.query.from ? new Date(req.query.from as string) : undefined;
     const to = req.query.to ? new Date(req.query.to as string) : undefined;
+    const shouldDecrypt = req.query.decrypt === 'true';
 
     // Build where clause
     const where: any = {
@@ -77,8 +80,43 @@ router.get('/logs', authenticateApiKey, async (req: Request, res: Response) => {
       prisma.actionLog.count({ where }),
     ]);
 
+    // Decrypt logs if requested
+    const processedLogs = await Promise.all(logs.map(async (log) => {
+      const logData = { ...log } as any;
+
+      if (log.encryptedData) {
+        if (shouldDecrypt) {
+          // Decrypt using user's API key + user ID
+          try {
+            const decrypted = await EncryptionService.decrypt(
+              log.encryptedData,
+              req.user!.apiKey,
+              req.user!.id
+            );
+            logData.actionData = decrypted;
+            logData.encryptedData = undefined; // Remove encrypted data from response
+            logData.encrypted = false;
+          } catch (error) {
+            console.error('Failed to decrypt log:', error);
+            logData.actionData = { error: 'Decryption failed' };
+            logData.encrypted = true;
+          }
+        } else {
+          // Return encrypted preview
+          logData.actionData = EncryptionService.getPreview(log.encryptedData);
+          logData.encrypted = true;
+          logData.encryptedData = undefined;
+        }
+      } else {
+        // Legacy unencrypted data
+        logData.encrypted = false;
+      }
+
+      return logData;
+    }));
+
     res.json({
-      logs,
+      logs: processedLogs,
       pagination: {
         total,
         limit,

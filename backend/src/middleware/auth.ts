@@ -28,16 +28,15 @@ export async function authenticateApiKey(
   next: NextFunction
 ) {
   try {
-    // Extract API key from header or body
+    // Extract API key from headers ONLY (not from body for security)
     const apiKey =
-      req.headers['x-api-key'] ||
-      req.headers['authorization']?.replace('Bearer ', '') ||
-      req.body?.api_key;
+      req.headers['x-api-key'] as string ||
+      req.headers['authorization']?.replace('Bearer ', '');
 
     if (!apiKey) {
       return res.status(401).json({
         error: 'Unauthorized',
-        message: 'API key required',
+        message: 'API key must be provided in X-API-Key or Authorization header',
       });
     }
 
@@ -53,9 +52,10 @@ export async function authenticateApiKey(
     });
 
     if (!user) {
+      // Use generic error message to prevent API key enumeration
       return res.status(401).json({
         error: 'Unauthorized',
-        message: 'Invalid API key',
+        message: 'Authentication failed',
       });
     }
 
@@ -63,7 +63,9 @@ export async function authenticateApiKey(
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error('[AUTH] Authentication error:', error);
+
+    // Don't expose internal errors
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Authentication failed',

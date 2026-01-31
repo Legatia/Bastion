@@ -1,12 +1,13 @@
 // Authorization Endpoint - Core Policy Check API
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { policyEvaluator } from '../services/policy-evaluator';
 import { authenticateApiKey } from '../middleware/auth';
 import { AuthorizeRequest, AuthorizeResponse } from '../types';
 import { QuotaService } from '../services/quota-service';
+import { EncryptionService } from '../services/encryption-service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -72,14 +73,20 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
 
     const latencyMs = Date.now() - startTime;
 
-    // Log the action
+    // Log the action (with encryption for privacy)
+    // Encrypt action details using user's API key for zero-knowledge audit logs
+    const userApiKey = req.user.apiKey;
+    const userId = req.user.id;
+    const encryptedActionData = await EncryptionService.encrypt(action.details, userApiKey, userId);
+
     const actionLog = await prisma.actionLog.create({
       data: {
         userId: req.user.id,
         agentId: agent_id,
         policyId: result.policyId?.toString() || null,
         actionType: action.type,
-        actionData: action.details,
+        actionData: Prisma.JsonNull, // Not storing plain data (using Prisma.JsonNull for optional Json field)
+        encryptedData: encryptedActionData, // Encrypted with user's API key
         decision: result.allowed ? 'ALLOWED' : 'BLOCKED',
         reason: result.reason,
         latencyMs,

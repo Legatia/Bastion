@@ -13,21 +13,29 @@ interface AnalyticsSummary {
     blockRate: string;
 }
 
-const ENCRYPTED_LOGS = [
-    { id: 1, time: '10:42 AM', type: 'Policy Violation', encrypted: 'aes256:7e8f9a...', decrypted: 'Blocked: Over Spend Limit ($5,000)' },
-    { id: 2, time: '09:15 AM', type: 'Signature Check', encrypted: 'aes256:3c4d5e...', decrypted: 'Success: Authorized API Call' },
-    { id: 3, time: '08:30 AM', type: 'Data Leak', encrypted: 'aes256:1a2b3c...', decrypted: 'Blocked: Private Keys Pattern Detected' },
-    { id: 4, time: 'Yesterday', type: 'Unknown Destination', encrypted: 'aes256:9z8y7x...', decrypted: 'Blocked: Endpoint not in Allowlist' },
-];
+interface ActionLog {
+    id: string;
+    actionType: string;
+    actionData: any;
+    decision: 'ALLOWED' | 'BLOCKED' | 'ERROR';
+    reason?: string;
+    timestamp: string;
+    encrypted: boolean;
+    policy?: {
+        name: string;
+        type: string;
+    };
+}
 
 import { useRouter } from 'next/router';
 
 export default function Analytics() {
     const router = useRouter();
     const [stats, setStats] = useState<AnalyticsSummary | null>(null);
+    const [logs, setLogs] = useState<ActionLog[]>([]);
     const [loading, setLoading] = useState(true);
+    const [logsLoading, setLogsLoading] = useState(false);
     const [isDecrypted, setIsDecrypted] = useState(false);
-    const [showLogs, setShowLogs] = useState(false); // Kept for compat, though unused
 
     useEffect(() => {
         const key = localStorage.getItem('bastion_api_key');
@@ -36,13 +44,34 @@ export default function Analytics() {
             return;
         }
 
+        // Fetch analytics summary
         api.get<{ summary: AnalyticsSummary }>('/analytics/summary')
             .then(data => setStats(data.summary))
             .catch(err => {
                 console.error("Failed to fetch analytics", err);
             })
             .finally(() => setLoading(false));
+
+        // Fetch logs (encrypted by default)
+        fetchLogs(false);
     }, []);
+
+    const fetchLogs = async (decrypt: boolean) => {
+        setLogsLoading(true);
+        try {
+            const data = await api.get<{ logs: ActionLog[] }>(`/logs?limit=20&decrypt=${decrypt}`);
+            setLogs(data.logs);
+            setIsDecrypted(decrypt);
+        } catch (err) {
+            console.error("Failed to fetch logs", err);
+        } finally {
+            setLogsLoading(false);
+        }
+    };
+
+    const toggleDecryption = () => {
+        fetchLogs(!isDecrypted);
+    };
 
     return (
         <div style={{ minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
@@ -113,15 +142,17 @@ export default function Analytics() {
                             Encrypted Audit Trail
                         </h2>
                         <button
-                            onClick={() => setIsDecrypted(!isDecrypted)}
+                            onClick={toggleDecryption}
+                            disabled={logsLoading}
                             style={{
                                 background: isDecrypted ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.1)',
                                 color: isDecrypted ? '#10b981' : '#fff',
-                                border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer',
-                                display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500'
+                                border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: logsLoading ? 'wait' : 'pointer',
+                                display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500',
+                                opacity: logsLoading ? 0.5 : 1
                             }}
                         >
-                            {isDecrypted ? <><EyeOff size={16} /> Hide Secrets</> : <><Eye size={16} /> Decrypt Logs</>}
+                            {logsLoading ? 'Loading...' : isDecrypted ? <><EyeOff size={16} /> Hide Secrets</> : <><Eye size={16} /> Decrypt Logs</>}
                         </button>
                     </div>
 
@@ -136,31 +167,61 @@ export default function Analytics() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {ENCRYPTED_LOGS.map((log) => (
-                                    <tr key={log.id} style={{ borderTop: '1px solid #222' }}>
-                                        <td style={{ padding: '1rem', color: '#666' }}>{log.time}</td>
-                                        <td style={{ padding: '1rem', fontWeight: '500' }}>{log.type}</td>
-                                        <td style={{ padding: '1rem', fontFamily: 'monospace', color: isDecrypted ? '#fff' : '#444' }}>
-                                            {isDecrypted ? log.decrypted : log.encrypted}
-                                        </td>
-                                        <td style={{ padding: '1rem' }}>
-                                            <span style={{
-                                                padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem',
-                                                background: log.decrypted.includes('Blocked') ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                                                color: log.decrypted.includes('Blocked') ? '#ef4444' : '#10b981'
-                                            }}>
-                                                {log.decrypted.includes('Blocked') ? 'BLOCKED' : 'VERIFIED'}
-                                            </span>
+                                {logs.length === 0 ? (
+                                    <tr style={{ borderTop: '1px solid #222' }}>
+                                        <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>
+                                            {logsLoading ? 'Loading logs...' : 'No audit logs yet. Logs will appear when actions are evaluated.'}
                                         </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    logs.map((log) => {
+                                        const time = new Date(log.timestamp).toLocaleString();
+                                        const displayData = isDecrypted
+                                            ? (typeof log.actionData === 'string' ? log.actionData : JSON.stringify(log.actionData, null, 2))
+                                            : log.actionData;
+
+                                        return (
+                                            <tr key={log.id} style={{ borderTop: '1px solid #222' }}>
+                                                <td style={{ padding: '1rem', color: '#666', fontSize: '0.85rem' }}>{time}</td>
+                                                <td style={{ padding: '1rem', fontWeight: '500' }}>
+                                                    {log.policy?.type || log.actionType}
+                                                </td>
+                                                <td style={{
+                                                    padding: '1rem',
+                                                    fontFamily: 'monospace',
+                                                    color: isDecrypted ? '#fff' : '#444',
+                                                    fontSize: '0.85rem',
+                                                    maxWidth: '400px',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                }}>
+                                                    {log.reason || displayData}
+                                                </td>
+                                                <td style={{ padding: '1rem' }}>
+                                                    <span style={{
+                                                        padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem',
+                                                        background: log.decision === 'BLOCKED' ? 'rgba(239, 68, 68, 0.2)' :
+                                                                   log.decision === 'ERROR' ? 'rgba(245, 158, 11, 0.2)' :
+                                                                   'rgba(16, 185, 129, 0.2)',
+                                                        color: log.decision === 'BLOCKED' ? '#ef4444' :
+                                                              log.decision === 'ERROR' ? '#f59e0b' :
+                                                              '#10b981'
+                                                    }}>
+                                                        {log.decision}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
                             </tbody>
                         </table>
                     </div>
 
-                    {!isDecrypted && (
+                    {!isDecrypted && logs.length > 0 && (
                         <p style={{ marginTop: '1rem', color: '#555', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <AlertTriangle size={14} /> Encrypted audit trails ensure no one (including Bastion) sees your raw data without permission.
+                            <AlertTriangle size={14} /> Logs are encrypted with AES-256-GCM using your API key. Only you can decrypt them.
                         </p>
                     )}
                 </section>
