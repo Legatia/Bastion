@@ -100,7 +100,7 @@ export class PolarService {
       name: params.name,
       type: params.type,
       duration: params.duration,
-      organization_id: this.ORG_ID,
+      // organization_id: this.ORG_ID, // Disallowed for Organization Tokens
     };
 
     // Add code if provided
