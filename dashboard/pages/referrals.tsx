@@ -337,7 +337,7 @@ function DiscountCodeGenerator({ availableCoupons }: DiscountCodeGeneratorProps)
                     </div>
 
                     <button
-                        onClick={() => window.open('https://polar.sh/bastion', '_blank')}
+                        onClick={() => router.push('/billing')}
                         style={{
                             width: '100%',
                             background: '#fff',
@@ -351,7 +351,7 @@ function DiscountCodeGenerator({ availableCoupons }: DiscountCodeGeneratorProps)
                             marginBottom: '0.75rem'
                         }}
                     >
-                        Go to Polar.sh Checkout →
+                        Go to Checkout →
                     </button>
 
                     <button
