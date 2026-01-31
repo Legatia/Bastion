@@ -48,6 +48,26 @@ enum Commands {
     },
     /// Initialize agent protection in current directory
     Init,
+    /// Auto-configure an existing agent to use Bastion
+    Enable {
+        /// Agent type (openclaw/autogpt/langchain)
+        #[arg(long)]
+        agent: String,
+
+        /// Port for Bastion proxy
+        #[arg(long, default_value_t = 3000)]
+        port: u16,
+
+        /// Skip starting daemon (just configure)
+        #[arg(long)]
+        configure_only: bool,
+    },
+    /// Disable Bastion for a configured agent
+    Disable {
+        /// Agent type (openclaw/autogpt/langchain)
+        #[arg(long)]
+        agent: String,
+    },
     /// Start the local supervisor proxy
     Start {
         /// Port to listen on
@@ -163,6 +183,12 @@ async fn main() {
         }
         Commands::Init => {
             handle_init(verbose).await;
+        }
+        Commands::Enable { agent, port, configure_only } => {
+            handle_enable(agent.clone(), *port, *configure_only, verbose).await;
+        }
+        Commands::Disable { agent } => {
+            handle_disable(agent.clone(), verbose).await;
         }
         Commands::Start { port, command, daemon } => {
             handle_start(*port, command, *daemon, verbose).await
@@ -424,6 +450,199 @@ async fn handle_init(verbose: bool) {
     }
     println!("\nNext step: Run your agent with Bastion protection:");
     println!("  bastion start -- python agent.py");
+}
+
+async fn handle_enable(agent_type: String, port: u16, configure_only: bool, verbose: bool) {
+    println!("🛡️  Bastion Auto-Configuration\n");
+    
+    // Check if logged in
+    let config_path = dirs::home_dir()
+        .unwrap()
+        .join(".bastion")
+        .join("config.json");
+
+    if !config_path.exists() {
+        println!("❌ Not logged in. Run `bastion login` first.");
+        std::process::exit(1);
+    }
+
+    match agent_type.to_lowercase().as_str() {
+        "openclaw" => configure_openclaw(port, configure_only, verbose).await,
+        "autogpt" => configure_autogpt(port, configure_only, verbose).await,
+        "langchain" => configure_langchain(port, configure_only, verbose).await,
+        _ => {
+            println!("❌ Unsupported agent type: {}", agent_type);
+            println!("\nSupported agents:");
+            println!("  - openclaw");
+            println!("  - autogpt");
+            println!("  - langchain");
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn configure_openclaw(port: u16, configure_only: bool, verbose: bool) {
+    println!("🦞 Configuring OpenClaw...\n");
+    
+    let openclaw_config_path = dirs::home_dir()
+        .unwrap()
+        .join(".openclaw")
+        .join("openclaw.json");
+    
+    if !openclaw_config_path.exists() {
+        println!("❌ OpenClaw config not found at: {:?}", openclaw_config_path);
+        println!("\nMake sure OpenClaw is installed and initialized.");
+        println!("Run `openclaw` first to create the config file.");
+        std::process::exit(1);
+    }
+
+    // Read existing config
+    let config_str = std::fs::read_to_string(&openclaw_config_path)
+        .expect("Failed to read OpenClaw config");
+    let mut config: serde_json::Value = serde_json::from_str(&config_str)
+        .expect("Failed to parse OpenClaw config");
+
+    // Backup original config
+    let backup_path = openclaw_config_path.with_extension("json.backup");
+    std::fs::copy(&openclaw_config_path, &backup_path).ok();
+    if verbose {
+        println!("📦 Backed up original config to: {:?}", backup_path);
+    }
+
+    // Add/update gateway configuration
+    if config.get("gateway").is_none() {
+        config["gateway"] = serde_json::json!({});
+    }
+    
+    config["gateway"]["trustedProxies"] = serde_json::json!(["127.0.0.1"]);
+    config["gateway"]["httpProxy"] = serde_json::json!(format!("http://localhost:{}", port));
+    config["gateway"]["httpsProxy"] = serde_json::json!(format!("http://localhost:{}", port));
+    
+    // Add bastion metadata
+    config["bastion"] = serde_json::json!({
+        "enabled": true,
+        "port": port,
+        "configured_at": chrono::Utc::now().to_rfc3339()
+    });
+
+    // Write updated config
+    std::fs::write(
+        &openclaw_config_path,
+        serde_json::to_string_pretty(&config).unwrap()
+    ).expect("Failed to write OpenClaw config");
+
+    println!("✅ OpenClaw configured!");
+    println!("   Proxy: http://localhost:{}", port);
+    println!("   Config: {:?}", openclaw_config_path);
+    
+    if !configure_only {
+        println!("\n🚀 Starting Bastion proxy...\n");
+        
+        // Start daemon
+        let bastion_dir = dirs::home_dir().unwrap().join(".bastion");
+        let pid_file = bastion_dir.join("openclaw.pid");
+        
+        // Use current executable to start daemon
+        let current_exe = std::env::current_exe().unwrap();
+        let mut cmd = std::process::Command::new(&current_exe);
+        cmd.args(&["start", "--daemon", "--port", &port.to_string()]);
+        
+        match cmd.spawn() {
+            Ok(_) => {
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                println!("✅ Bastion proxy started in background");
+                println!("\n📌 Status:");
+                println!("   • Proxy running on port {}", port);
+                println!("   • PID file: {:?}", pid_file);
+                println!("\n🎯 Next step: Run OpenClaw normally");
+                println!("   openclaw");
+                println!("\nAll API calls will be automatically monitored! 🛡️");
+            }
+            Err(e) => {
+                println!("❌ Failed to start daemon: {}", e);
+                println!("\nYou can start it manually with:");
+                println!("   bastion start -d");
+            }
+        }
+    } else {
+        println!("\n⏭️  Skipped starting daemon (--configure-only)");
+        println!("\nTo start Bastion proxy:");
+        println!("   bastion start -d --port {}", port);
+    }
+}
+
+async fn configure_autogpt(port: u16, configure_only: bool, verbose: bool) {
+    println!("🤖 Auto-GPT support coming soon!");
+    println!("\nFor now, you can:");
+    println!("1. Set environment variables:");
+    println!("   export HTTP_PROXY=http://localhost:{}", port);
+    println!("   export HTTPS_PROXY=http://localhost:{}", port);
+    println!("2. Run: bastion start -d");
+    println!("3. Run: autogpt");
+}
+
+async fn configure_langchain(port: u16, configure_only: bool, verbose: bool) {
+    println!("🦜 LangChain support coming soon!");
+    println!("\nFor now, install our middleware:");
+    println!("   pip install bastion-langchain");
+    println!("\nThen in your code:");
+    println!("   from bastion_langchain import BastionMiddleware");
+    println!("   middleware = BastionMiddleware('http://localhost:{}') ", port);
+}
+
+async fn handle_disable(agent_type: String, verbose: bool) {
+    println!("🛑 Disabling Bastion for {}\n", agent_type);
+    
+    match agent_type.to_lowercase().as_str() {
+        "openclaw" => {
+            let openclaw_config_path = dirs::home_dir()
+                .unwrap()
+                .join(".openclaw")
+                .join("openclaw.json");
+            
+            if !openclaw_config_path.exists() {
+                println!("❌ OpenClaw config not found");
+                return;
+            }
+
+            // Read config
+            let config_str = std::fs::read_to_string(&openclaw_config_path)
+                .expect("Failed to read OpenClaw config");
+            let mut config: serde_json::Value = serde_json::from_str(&config_str)
+                .expect("Failed to parse OpenClaw config");
+
+            // Remove Bastion config
+            if let Some(gateway) = config.get_mut("gateway") {
+                gateway.as_object_mut().map(|g| {
+                    g.remove("httpProxy");
+                    g.remove("httpsProxy");
+                    g.remove("trustedProxies");
+                });
+            }
+            config.as_object_mut().map(|c| c.remove("bastion"));
+
+            // Write back
+            std::fs::write(
+                &openclaw_config_path,
+                serde_json::to_string_pretty(&config).unwrap()
+            ).expect("Failed to write config");
+
+            println!("✅ Bastion disabled for OpenClaw");
+            println!("   Config cleaned: {:?}", openclaw_config_path);
+            
+            // Try to restore backup
+            let backup_path = openclaw_config_path.with_extension("json.backup");
+            if backup_path.exists() {
+                println!("   Backup available: {:?}", backup_path);
+            }
+        }
+        _ => {
+            println!("❌ Unsupported agent type: {}", agent_type);
+            println!("\nTo disable Bastion:");
+            println!("1. Stop the daemon: bastion stop");
+            println!("2. Manually edit your agent's config");
+        }
+    }
 }
 
 async fn handle_start(port: u16, command: &[String], daemon: bool, verbose: bool) {

@@ -13,7 +13,8 @@ export class BillingService {
    */
   static async calculateInvoiceAmount(
     userId: string,
-    baseTier: string
+    baseTier: string,
+    dryRun: boolean = true
   ): Promise<{
     baseAmount: number;
     firstPaymentDiscount: number;
@@ -29,8 +30,8 @@ export class BillingService {
     // Base prices by tier
     const tierPrices: Record<string, number> = {
       STARTER: 1500,  // $15.00 in cents
-      GROWTH: 14900,  // $149.00
-      PRO: 49900,     // $499.00
+      GROWTH: 9900,  // $99.00
+      PRO: 29900,     // $299.00
       ENTERPRISE: 0   // Custom pricing, no coupons
     };
 
@@ -53,10 +54,18 @@ export class BillingService {
     }
 
     // Step 1: Apply first payment discount (10% one-time)
+    // For previews (dryRun=true), we just CHECK eligibility, we don't apply it
+    // But currently getFirstPaymentDiscount DOES update DB. 
+    // We need to fix getFirstPaymentDiscount too if we want real dry run, 
+    // but for now, let's look at applyCoupons which is the main risk.
     const firstPayment = await CouponManager.getFirstPaymentDiscount(
       userId,
-      baseAmount
+      baseAmount,
+      dryRun
     );
+
+    // NOTE: getFirstPaymentDiscount consumes the discount! 
+    // This is also a bug for previews.
 
     let currentAmount = firstPayment.finalAmount;
     const firstPaymentDiscount = firstPayment.discountAmount;
@@ -64,7 +73,8 @@ export class BillingService {
     // Step 2: Apply referral coupons (max 50% per month)
     const couponResult = await CouponManager.applyCoupons(
       userId,
-      currentAmount
+      currentAmount,
+      dryRun
     );
 
     return {

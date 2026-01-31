@@ -36,11 +36,11 @@ export default function Home() {
           <span className="gradient-text">Autonomous Intelligence</span>
         </h1>
 
-        <p style={{ fontSize: '1.2rem', color: '#889', maxWidth: '600px', marginBottom: '3rem', lineHeight: '1.6' }}>
+        <p style={{ fontSize: '1.2rem', color: '#889', maxWidth: '600px', marginBottom: '2rem', lineHeight: '1.6' }}>
           Prevent rogue agent behavior with a programmable policy engine. Bastion acts as a secure firewall and audit layer for your AI workforce.
         </p>
 
-        <div style={{ display: 'flex', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '3rem' }}>
           <Link href="/analytics" style={{
             background: '#fff', color: '#000', padding: '1rem 2rem', borderRadius: '8px',
             textDecoration: 'none', fontWeight: 'bold', fontSize: '1.1rem'
@@ -49,6 +49,28 @@ export default function Home() {
             background: 'transparent', color: '#fff', padding: '1rem 2rem', borderRadius: '8px',
             textDecoration: 'none', fontWeight: 'bold', fontSize: '1.1rem', border: '1px solid rgba(255,255,255,0.2)'
           }}>View Demo</Link>
+        </div>
+
+        {/* Quick Start - OpenClaw Integration */}
+        <div style={{
+          background: 'rgba(16,185,129,0.1)',
+          border: '1px solid rgba(16,185,129,0.3)',
+          borderRadius: '12px',
+          padding: '1.5rem 2rem',
+          maxWidth: '600px',
+          marginBottom: '2rem'
+        }}>
+          <div style={{ fontSize: '0.85rem', color: '#6ee7b7', marginBottom: '0.75rem', fontWeight: '600', textAlign: 'left' }}>
+            🦞 OPENCLAW INTEGRATION - READY NOW
+          </div>
+          <div style={{ background: '#000', padding: '1rem', borderRadius: '8px', marginBottom: '0.75rem' }}>
+            <code style={{ fontFamily: 'monospace', fontSize: '0.95rem', color: '#10b981' }}>
+              bastion enable --agent openclaw
+            </code>
+          </div>
+          <div style={{ fontSize: '0.9rem', color: '#888', textAlign: 'left' }}>
+            Auto-configure in one command. No code changes required.
+          </div>
         </div>
 
         {/* Stats / Social Proof */}

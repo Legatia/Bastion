@@ -84,7 +84,8 @@ export class CouponManager {
    */
   static async applyCoupons(
     userId: string,
-    baseAmount: number
+    baseAmount: number,
+    dryRun: boolean = false
   ): Promise<{
     discountAmount: number;
     finalAmount: number;
@@ -132,29 +133,34 @@ export class CouponManager {
 
     // Mark coupons as used
     const couponIds = availableCoupons.slice(0, couponsToUse).map(c => c.id);
-    await prisma.coupon.updateMany({
-      where: {
-        id: { in: couponIds }
-      },
-      data: {
-        used: true,
-        usedAt: new Date()
-      }
-    });
+
+    if (!dryRun) {
+      await prisma.coupon.updateMany({
+        where: {
+          id: { in: couponIds }
+        },
+        data: {
+          used: true,
+          usedAt: new Date()
+        }
+      });
+    }
 
     // Update monthly record
-    await prisma.monthlyDiscount.update({
-      where: {
-        userId_monthStart: {
-          userId,
-          monthStart: start
+    if (!dryRun) {
+      await prisma.monthlyDiscount.update({
+        where: {
+          userId_monthStart: {
+            userId,
+            monthStart: start
+          }
+        },
+        data: {
+          couponsUsed: { increment: couponsToUse },
+          discountApplied: { increment: discountPercent }
         }
-      },
-      data: {
-        couponsUsed: { increment: couponsToUse },
-        discountApplied: { increment: discountPercent }
-      }
-    });
+      });
+    }
 
     const couponsRemaining = await this.getAvailableCoupons(userId);
 
@@ -228,7 +234,8 @@ export class CouponManager {
    */
   static async getFirstPaymentDiscount(
     userId: string,
-    baseAmount: number
+    baseAmount: number,
+    dryRun: boolean = false
   ): Promise<{
     discountAmount: number;
     finalAmount: number;
@@ -252,10 +259,12 @@ export class CouponManager {
     const finalAmount = baseAmount - discountAmount;
 
     // Mark as used
-    await prisma.user.update({
-      where: { id: userId },
-      data: { firstPaymentDiscount: true }
-    });
+    if (!dryRun) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { firstPaymentDiscount: true }
+      });
+    }
 
     return {
       discountAmount,

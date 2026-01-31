@@ -77,6 +77,15 @@ export default defineConfig({
         ]
       },
       {
+        text: 'Integrations',
+        items: [
+          { text: 'OpenClaw', link: '/guides/openclaw-integration' },
+          { text: 'AutoGPT', link: '/guides/autogpt-integration' },
+          { text: 'LangChain', link: '/guides/langchain-integration' },
+          { text: 'CrewAI', link: '/guides/crewai-integration' },
+        ]
+      },
+      {
         text: 'API Reference',
         items: [
           { text: 'REST API', link: '/api/reference' },

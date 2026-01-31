@@ -76,6 +76,25 @@ Backend URL: http://localhost:3000/v1
 Next step: Run `bastion init` in your agent directory
 ```
 
+## Quick Path: Using OpenClaw?
+
+**If you're using OpenClaw**, skip to the one-command setup instead:
+
+```bash
+bastion enable --agent openclaw
+```
+
+This automatically:
+1. ✅ Configures `~/.openclaw/openclaw.json` with proxy settings
+2. ✅ Starts Bastion daemon in background
+3. ✅ Creates backup of original config
+
+Then just run `openclaw` normally - it's fully protected!
+
+**[→ View full OpenClaw integration guide](/guides/openclaw-integration)**
+
+---
+
 ## Step 6: Initialize Your Agent
 
 Navigate to your agent's project directory:
