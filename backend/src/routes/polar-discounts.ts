@@ -76,95 +76,97 @@ router.get('/polar/discount-code', authenticateApiKey, async (req: Request, res:
 
       // 3. Delete from DB
       await prisma.polarDiscountCode.delete({
-        where: { id: existingCode.id }
-      });
+        // 3. Delete from DB
+        await prisma.polarDiscountCode.delete({
+          where: { id: existingCode.id }
+        });
 
-      // Now fall through to generation logic below...
-    }
+        // Now fall through to generation logic below...
+      }
 
-    // Get user's coupon status
+    // Get user's coupon status (Fetch AFTER potentially releasing coupons)
     const [availableCoupons, monthlyUsage] = await Promise.all([
-      CouponManager.getAvailableCoupons(userId),
-      CouponManager.getMonthlyUsage(userId),
-    ]);
+        CouponManager.getAvailableCoupons(userId),
+        CouponManager.getMonthlyUsage(userId),
+      ]);
 
-    // Check if user has coupons available
-    if (availableCoupons === 0) {
-      return res.status(400).json({
-        error: 'No coupons available',
-        message: 'You need to earn referral coupons before generating a discount code.',
-        availableCoupons: 0,
-      });
-    }
+      // Check if user has coupons available
+      if (availableCoupons === 0) {
+        return res.status(400).json({
+          error: 'No coupons available',
+          message: 'You need to earn referral coupons before generating a discount code.',
+          availableCoupons: 0,
+        });
+      }
 
-    // Check if user can use more coupons this month
-    if (!monthlyUsage.canUseMore) {
-      return res.status(400).json({
-        error: 'Monthly limit reached',
-        message: `You've already used the maximum ${monthlyUsage.couponsUsed} coupons this month.`,
-        nextResetDate: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString(),
-      });
-    }
+      // Check if user can use more coupons this month
+      if (!monthlyUsage.canUseMore) {
+        return res.status(400).json({
+          error: 'Monthly limit reached',
+          message: `You've already used the maximum ${monthlyUsage.couponsUsed} coupons this month.`,
+          nextResetDate: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString(),
+        });
+      }
 
-    // Determine how many coupons to use
-    const couponsToUse = requestedCoupons !== undefined
-      ? Math.min(requestedCoupons, availableCoupons, monthlyUsage.couponsAvailable)
-      : Math.min(availableCoupons, monthlyUsage.couponsAvailable);
+      // Determine how many coupons to use
+      const couponsToUse = requestedCoupons !== undefined
+        ? Math.min(requestedCoupons, availableCoupons, monthlyUsage.couponsAvailable)
+        : Math.min(availableCoupons, monthlyUsage.couponsAvailable);
 
-    // Generate Polar discount code
-    const polarDiscount = await PolarService.createMonthlyUserDiscount(
-      userId,
-      userEmail,
-      couponsToUse,
-      monthlyUsage.couponsAvailable
-    );
-
-    // Store in database
-    const savedCode = await prisma.polarDiscountCode.create({
-      data: {
+      // Generate Polar discount code
+      const polarDiscount = await PolarService.createMonthlyUserDiscount(
         userId,
-        polarDiscountId: polarDiscount.discount.id,
-        code: polarDiscount.code,
-        percentage: polarDiscount.percentage,
-        couponsUsed: couponsToUse,
-        monthStart,
-        monthEnd: polarDiscount.expiresAt,
-        expiresAt: polarDiscount.expiresAt,
-      },
-    });
+        userEmail,
+        couponsToUse,
+        monthlyUsage.couponsAvailable
+      );
 
-    // Burn the coupons immediately so they don't show as available
-    await CouponManager.burnCoupons(userId, savedCode.couponsUsed);
+      // Store in database
+      const savedCode = await prisma.polarDiscountCode.create({
+        data: {
+          userId,
+          polarDiscountId: polarDiscount.discount.id,
+          code: polarDiscount.code,
+          percentage: polarDiscount.percentage,
+          couponsUsed: couponsToUse,
+          monthStart,
+          monthEnd: polarDiscount.expiresAt,
+          expiresAt: polarDiscount.expiresAt,
+        },
+      });
 
-    logger.info('[POLAR] Generated discount code', { userEmail, code: polarDiscount.code, percentage: polarDiscount.percentage });
+      // Burn the coupons immediately so they don't show as available
+      await CouponManager.burnCoupons(userId, savedCode.couponsUsed);
 
-    res.json({
-      code: savedCode.code,
-      percentage: savedCode.percentage,
-      couponsUsed: savedCode.couponsUsed,
-      expiresAt: savedCode.expiresAt,
-      polarDiscountId: savedCode.polarDiscountId,
-      redeemed: false,
-      isNewCode: true,
-      message: `Apply code "${savedCode.code}" at Polar checkout to get ${savedCode.percentage}% off!`,
-    });
-  } catch (error: any) {
-    logger.error('[POLAR] Error generating discount code:', { error: error.message });
+      logger.info('[POLAR] Generated discount code', { userEmail, code: polarDiscount.code, percentage: polarDiscount.percentage });
 
-    // Handle Polar API errors
-    if (error.message?.includes('Polar API error')) {
-      return res.status(502).json({
-        error: 'Payment provider error',
-        message: 'Failed to generate discount code. Please try again later.',
+      res.json({
+        code: savedCode.code,
+        percentage: savedCode.percentage,
+        couponsUsed: savedCode.couponsUsed,
+        expiresAt: savedCode.expiresAt,
+        polarDiscountId: savedCode.polarDiscountId,
+        redeemed: false,
+        isNewCode: true,
+        message: `Apply code "${savedCode.code}" at Polar checkout to get ${savedCode.percentage}% off!`,
+      });
+    } catch (error: any) {
+      logger.error('[POLAR] Error generating discount code:', { error: error.message });
+
+      // Handle Polar API errors
+      if (error.message?.includes('Polar API error')) {
+        return res.status(502).json({
+          error: 'Payment provider error',
+          message: 'Failed to generate discount code. Please try again later.',
+        });
+      }
+
+      res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to generate discount code',
       });
     }
-
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to generate discount code',
-    });
-  }
-});
+  });
 
 /**
  * GET /v1/polar/discount-status
