@@ -61,7 +61,7 @@ const PLANS: Plan[] = [
         description: 'Compliance-ready infrastructure for serious operations.',
         features: [
             { text: 'Unlimited Agents', ready: true },
-            { text: 'Unlimited Daily Checks', ready: true },
+            { text: '+80,000 Daily Checks', ready: true },
             { text: 'Unlimited History', ready: true },
             { text: 'Compliance Templates (SOC2)', ready: false },
             { text: 'API Access', ready: true },
