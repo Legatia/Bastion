@@ -165,9 +165,14 @@ export default function Profile() {
 
                         {apiKey && (
                             <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(59,130,246,0.1)', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
-                                <p style={{ fontSize: '0.9rem', color: '#bfdbfe', margin: 0 }}>
-                                    <strong>Quick Start:</strong> Run <code>bastion login --key {apiKey.substring(0, 8)}...</code> in your terminal.
+                                <p style={{ fontSize: '0.9rem', color: '#bfdbfe', margin: 0, marginBottom: '0.5rem' }}>
+                                    <strong>Installation Guide:</strong>
                                 </p>
+                                <ol style={{ fontSize: '0.85rem', color: '#bfdbfe', margin: 0, paddingLeft: '1.25rem', lineHeight: '1.8' }}>
+                                    <li>Install: <code style={{ background: '#000', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash</code></li>
+                                    <li>Initialize: <code style={{ background: '#000', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion init</code> (paste your API key above)</li>
+                                    <li>Start: <code style={{ background: '#000', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion start</code></li>
+                                </ol>
                             </div>
                         )}
                     </div>
@@ -190,6 +195,32 @@ export default function Profile() {
                             </p>
 
                             <div style={{ display: 'grid', gap: '1rem' }}>
+                                {/* Universal Setup */}
+                                <div style={{
+                                    background: '#000',
+                                    padding: '1.5rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid #27272a'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+                                        <div>
+                                            <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, marginBottom: '0.5rem' }}>🌐 Universal Proxy Setup</h3>
+                                            <p style={{ color: '#888', fontSize: '0.9rem', margin: 0 }}>Works with all agents via HTTP proxy</p>
+                                        </div>
+                                        <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600' }}>
+                                            READY
+                                        </span>
+                                    </div>
+                                    <div style={{ background: 'rgba(16,185,129,0.1)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
+                                        <code style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#10b981', display: 'block' }}>
+                                            export HTTP_PROXY=http://localhost:8765
+                                        </code>
+                                    </div>
+                                    <p style={{ color: '#666', fontSize: '0.85rem', marginTop: '0.75rem', marginBottom: 0 }}>
+                                        After running <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion start</code>, configure your agent to use localhost:8765 as HTTP proxy
+                                    </p>
+                                </div>
+
                                 {/* OpenClaw */}
                                 <div style={{
                                     background: '#000',
@@ -200,72 +231,46 @@ export default function Profile() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
                                         <div>
                                             <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, marginBottom: '0.5rem' }}>🦞 OpenClaw</h3>
-                                            <p style={{ color: '#888', fontSize: '0.9rem', margin: 0 }}>Auto-configure in one command</p>
+                                            <p style={{ color: '#888', fontSize: '0.9rem', margin: 0 }}>Point OpenClaw to the proxy</p>
+                                        </div>
+                                        <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600' }}>
+                                            READY
+                                        </span>
+                                    </div>
+                                    <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: 0 }}>
+                                        Set <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>HTTP_PROXY=http://localhost:8765</code> before running OpenClaw
+                                    </p>
+                                </div>
+
+                                {/* LangChain/Python */}
+                                <div style={{
+                                    background: '#000',
+                                    padding: '1.5rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid #27272a'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+                                        <div>
+                                            <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, marginBottom: '0.5rem' }}>🐍 Python Agents (LangChain, AutoGPT)</h3>
+                                            <p style={{ color: '#888', fontSize: '0.9rem', margin: 0 }}>Set proxy in your code</p>
                                         </div>
                                         <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600' }}>
                                             READY
                                         </span>
                                     </div>
                                     <div style={{ background: 'rgba(16,185,129,0.1)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
-                                        <code style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: '#10b981' }}>
-                                            bastion enable --agent openclaw
+                                        <code style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#10b981', display: 'block' }}>
+                                            os.environ["HTTP_PROXY"] = "http://localhost:8765"
                                         </code>
                                     </div>
-                                    <p style={{ color: '#666', fontSize: '0.85rem', marginTop: '0.75rem', marginBottom: 0 }}>
-                                        Automatically configures ~/.openclaw/openclaw.json and starts proxy
-                                    </p>
-                                </div>
-
-                                {/* AutoGPT */}
-                                <div style={{
-                                    background: '#000',
-                                    padding: '1.5rem',
-                                    borderRadius: '12px',
-                                    border: '1px solid #27272a',
-                                    opacity: 0.6
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                                        <div>
-                                            <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, marginBottom: '0.5rem' }}>🤖 AutoGPT</h3>
-                                            <p style={{ color: '#888', fontSize: '0.9rem', margin: 0 }}>Coming soon - Manual setup available</p>
-                                        </div>
-                                        <span style={{ background: 'rgba(168,85,247,0.2)', color: '#a855f7', padding: '4px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600' }}>
-                                            BETA
-                                        </span>
-                                    </div>
-                                    <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: 0 }}>
-                                        Set HTTP_PROXY env vars and run bastion start -d
-                                    </p>
-                                </div>
-
-                                {/* LangChain */}
-                                <div style={{
-                                    background: '#000',
-                                    padding: '1.5rem',
-                                    borderRadius: '12px',
-                                    border: '1px solid #27272a',
-                                    opacity: 0.6
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                                        <div>
-                                            <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, marginBottom: '0.5rem' }}>🦜 LangChain</h3>
-                                            <p style={{ color: '#888', fontSize: '0.9rem', margin: 0 }}>SDK package in development</p>
-                                        </div>
-                                        <span style={{ background: 'rgba(168,85,247,0.2)', color: '#a855f7', padding: '4px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600' }}>
-                                            SOON
-                                        </span>
-                                    </div>
-                                    <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: 0 }}>
-                                        pip install bastion-langchain
-                                    </p>
                                 </div>
                             </div>
 
                             <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(16,185,129,0.1)', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
                                 <p style={{ fontSize: '0.9rem', color: '#6ee7b7', margin: 0 }}>
                                     📚 <strong>Full Guide:</strong> View detailed integration docs at{' '}
-                                    <a href="https://docs.bastion.ai/guides/openclaw-integration" target="_blank" style={{ color: '#10b981', textDecoration: 'underline' }}>
-                                        docs.bastion.ai
+                                    <a href="https://github.com/Legatia/Bastion#quick-start" target="_blank" rel="noopener noreferrer" style={{ color: '#10b981', textDecoration: 'underline' }}>
+                                        GitHub
                                     </a>
                                 </p>
                             </div>

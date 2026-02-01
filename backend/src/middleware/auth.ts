@@ -15,6 +15,7 @@ declare global {
         email: string;
         apiKey: string;
         tier: string;
+        trialEndsAt: Date | null;
       };
     }
   }
@@ -49,6 +50,7 @@ export async function authenticateApiKey(
         email: true,
         apiKey: true,
         tier: true,
+        trialEndsAt: true,
       },
     });
 

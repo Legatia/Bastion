@@ -38,6 +38,22 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // *** TRIAL EXPIRY CHECK ***
+    // Check if user is on TRIAL tier and if trial has expired
+    if (req.user.tier === 'TRIAL' && req.user.trialEndsAt) {
+      const now = new Date();
+      const trialEnds = new Date(req.user.trialEndsAt);
+
+      if (now > trialEnds) {
+        return res.status(403).json({
+          allowed: false,
+          error: 'TRIAL_EXPIRED',
+          reason: 'Your 3-day trial has expired. Please upgrade your plan to continue using Bastion.',
+          trialEndsAt: trialEnds.toISOString(),
+        });
+      }
+    }
+
     // *** QUOTA CHECK ***
     const quotaCheck = await QuotaService.checkDailyLimit(req.user.id);
     if (!quotaCheck.allowed) {

@@ -50,25 +50,25 @@ export default function Home() {
           }}>View Demo</Link>
         </div>
 
-        {/* Quick Start - OpenClaw Integration */}
+        {/* Quick Start - Install Instructions */}
         <div style={{
           background: 'rgba(16,185,129,0.1)',
           border: '1px solid rgba(16,185,129,0.3)',
           borderRadius: '12px',
           padding: '1.5rem 2rem',
-          maxWidth: '600px',
+          maxWidth: '700px',
           marginBottom: '2rem'
         }}>
-          <div style={{ fontSize: '0.85rem', color: '#6ee7b7', marginBottom: '0.75rem', fontWeight: '600', textAlign: 'left' }}>
-            🦞 OPENCLAW INTEGRATION - READY NOW
+          <div style={{ fontSize: '0.85rem', color: '#6ee7b7', marginBottom: '1rem', fontWeight: '600', textAlign: 'left' }}>
+            ⚡ INSTALL IN 60 SECONDS
           </div>
           <div style={{ background: '#000', padding: '1rem', borderRadius: '8px', marginBottom: '0.75rem' }}>
-            <code style={{ fontFamily: 'monospace', fontSize: '0.95rem', color: '#10b981' }}>
-              bastion enable --agent openclaw
+            <code style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: '#10b981', display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash
             </code>
           </div>
           <div style={{ fontSize: '0.9rem', color: '#888', textAlign: 'left' }}>
-            Auto-configure in one command. No code changes required.
+            Then run <code style={{ background: '#000', padding: '2px 8px', borderRadius: '4px', color: '#10b981' }}>bastion init</code> and <code style={{ background: '#000', padding: '2px 8px', borderRadius: '4px', color: '#10b981' }}>bastion start</code>. Works with OpenClaw, LangChain, AutoGPT - any agent.
           </div>
         </div>
 

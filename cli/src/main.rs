@@ -160,6 +160,8 @@ enum Commands {
     Validate,
     /// Check connection to Bastion backend
     Health,
+    /// Update Bastion CLI to the latest version
+    Update,
 }
 
 // Configuration stored locally
@@ -239,6 +241,44 @@ async fn main() {
         }
         Commands::Health => {
             handle_health(verbose).await;
+        }
+        Commands::Update => {
+            handle_update(verbose).await;
+        }
+    }
+}
+
+async fn handle_update(verbose: bool) {
+    println!("🔄 Checking for updates...");
+
+    let status = self_update::backends::github::Update::configure()
+        .repo_owner("Legatia")
+        .repo_name("Bastion")
+        .bin_name("bastion")
+        .show_download_progress(true)
+        .current_version(VERSION)
+        .build();
+
+    match status {
+        Ok(update) => {
+            match update.update() {
+                Ok(status) => {
+                     if status.updated() {
+                         println!("✅ Updated to version {}!", status.version());
+                     } else {
+                         println!("✨ Already on the latest version ({})", status.version());
+                     }
+                }
+                Err(e) => {
+                     println!("❌ Update failed: {}", e);
+                     if verbose {
+                         println!("Error details: {:?}", e);
+                     }
+                }
+            }
+        }
+        Err(e) => {
+             println!("❌ Failed to configure update: {}", e);
         }
     }
 }

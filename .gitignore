@@ -3,6 +3,10 @@
 Thumbs.db
 .claude
 DOC
+*.pid
+*.out
+*.err
+.bastion-agent.json
 
 # Environment Variables
 .env
