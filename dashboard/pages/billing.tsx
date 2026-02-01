@@ -100,7 +100,7 @@ export default function Billing() {
 
     const handleSubscribe = (plan: Plan) => {
         if (plan.action === 'sales') {
-            alert(`Opening contact form for ${plan.name} Plan...`);
+            window.location.href = 'mailto:bastion.feedback@legatia.solutions?subject=Enterprise Inquiry';
             return;
         }
 
@@ -253,6 +253,12 @@ export default function Billing() {
                 </div>
 
             </main>
+
+            {/* Footer */}
+            <footer style={{ padding: '2rem', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', color: '#666', fontSize: '0.9rem' }}>
+                <p>Questions? Contact us at <a href="mailto:bastion.feedback@legatia.solutions" style={{ color: '#888', textDecoration: 'none' }}>bastion.feedback@legatia.solutions</a></p>
+                <p style={{ marginTop: '0.5rem' }}>&copy; {new Date().getFullYear()} Legatia Solutions. All rights reserved.</p>
+            </footer>
         </div>
     );
 }

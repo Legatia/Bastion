@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Shield, User } from 'lucide-react';
+import Image from 'next/image';
+import { User } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 
@@ -31,7 +32,7 @@ export default function Navbar() {
             {/* Logo Area */}
             <Link href="/" style={{ textDecoration: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.25rem', fontWeight: 'bold', color: '#fff' }}>
-                    <Shield color="#3b82f6" size={24} />
+                    <Image src="/Bastion-logo.png" alt="Bastion Protocol" width={32} height={32} />
                     <span>BASTION</span>
                 </div>
             </Link>

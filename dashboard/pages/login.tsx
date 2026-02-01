@@ -1,7 +1,8 @@
 import Head from 'next/head';
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import { Shield, ArrowRight, Lock, Loader2, CheckCircle, Zap, Globe } from 'lucide-react';
+import Image from 'next/image';
+import { ArrowRight, Lock, Loader2, CheckCircle, Zap, Globe } from 'lucide-react';
 import { api, API_BASE_URL } from '../lib/api';
 
 export default function Login() {
@@ -153,7 +154,7 @@ export default function Login() {
 
                 <div style={{ position: 'relative', zIndex: 10, maxWidth: '500px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '2rem', color: '#60a5fa' }}>
-                        <Shield size={32} />
+                        <Image src="/Bastion-logo.png" alt="Bastion Logo" width={48} height={48} />
                         <span>BASTION PROTOCOL</span>
                     </div>
 
@@ -361,6 +362,10 @@ export default function Login() {
 
                     <p style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.8rem', color: '#52525b' }}>
                         By clicking continue, you agree to our <a href="#" style={{ color: '#71717a', textDecoration: 'underline' }}>Terms of Service</a> and <a href="#" style={{ color: '#71717a', textDecoration: 'underline' }}>Privacy Policy</a>.
+                    </p>
+
+                    <p style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.8rem', color: '#52525b' }}>
+                        Need help? <a href="mailto:bastion.feedback@legatia.solutions" style={{ color: '#71717a', textDecoration: 'underline' }}>bastion.feedback@legatia.solutions</a>
                     </p>
                 </div>
             </div>

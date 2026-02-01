@@ -9,7 +9,6 @@ export default function Home() {
       <Head>
         <title>Bastion Protocol | Trustless AI Insurance</title>
         <meta name="description" content="The Immutable Supervisor for the Agent Economy" />
-        <link rel="icon" href="/favicon.ico" />
       </Head>
 
       {/* Navigation */}
@@ -110,6 +109,12 @@ export default function Home() {
           />
         </div>
       </section>
+
+      {/* Footer */}
+      <footer style={{ padding: '2rem', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', color: '#666', fontSize: '0.9rem' }}>
+        <p>Questions? Contact us at <a href="mailto:bastion.feedback@legatia.solutions" style={{ color: '#888', textDecoration: 'none' }}>bastion.feedback@legatia.solutions</a></p>
+        <p style={{ marginTop: '0.5rem' }}>&copy; {new Date().getFullYear()} Legatia Solutions. All rights reserved.</p>
+      </footer>
 
     </div>
   );
