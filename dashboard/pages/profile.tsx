@@ -213,11 +213,11 @@ export default function Profile() {
                                     </div>
                                     <div style={{ background: 'rgba(16,185,129,0.1)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
                                         <code style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#10b981', display: 'block' }}>
-                                            export HTTP_PROXY=http://localhost:8765
+                                            export HTTP_PROXY=http://localhost:3000
                                         </code>
                                     </div>
                                     <p style={{ color: '#666', fontSize: '0.85rem', marginTop: '0.75rem', marginBottom: 0 }}>
-                                        After running <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion start</code>, configure your agent to use localhost:8765 as HTTP proxy
+                                        After running <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion start</code>, configure your agent to use localhost:3000 as HTTP proxy
                                     </p>
                                 </div>
 
@@ -238,7 +238,7 @@ export default function Profile() {
                                         </span>
                                     </div>
                                     <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: 0 }}>
-                                        Set <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>HTTP_PROXY=http://localhost:8765</code> before running OpenClaw
+                                        Set <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>HTTP_PROXY=http://localhost:3000</code> before running OpenClaw
                                     </p>
                                 </div>
 
@@ -260,7 +260,7 @@ export default function Profile() {
                                     </div>
                                     <div style={{ background: 'rgba(16,185,129,0.1)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
                                         <code style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#10b981', display: 'block' }}>
-                                            os.environ["HTTP_PROXY"] = "http://localhost:8765"
+                                            os.environ["HTTP_PROXY"] = "http://localhost:3000"
                                         </code>
                                     </div>
                                 </div>

@@ -25,6 +25,7 @@ const PLANS: Plan[] = [
         period: '/mo',
         description: 'Perfect for solopreneurs building their first autonomous agents.',
         features: [
+            { text: '+2,000 Daily Checks', ready: true }, // 1k -> 3k
             { text: '1 Active Agent', ready: true },
             { text: 'Basic Policy Engine', ready: true },
             { text: '7-Day Audit Logs', ready: true },
@@ -41,7 +42,8 @@ const PLANS: Plan[] = [
         period: '/mo',
         description: 'For small teams scaling their agentic workforce.',
         features: [
-            { text: '5 Active Agents', ready: true },
+            { text: '+4 Active Agents', ready: true }, // 1 -> 5
+            { text: '+17,000 Daily Checks', ready: true }, // 3k -> 20k
             { text: 'Advanced Logic (Time/Velocity)', ready: false },
             { text: '30-Day Audit Logs', ready: true },
             { text: 'Slack & Email Alerts', ready: false },
@@ -59,8 +61,9 @@ const PLANS: Plan[] = [
         description: 'Compliance-ready infrastructure for serious operations.',
         features: [
             { text: 'Unlimited Agents', ready: true },
-            { text: 'Compliance Templates (SOC2)', ready: false },
+            { text: 'Unlimited Daily Checks', ready: true },
             { text: 'Unlimited History', ready: true },
+            { text: 'Compliance Templates (SOC2)', ready: false },
             { text: 'API Access', ready: true },
             { text: 'Priority Support', ready: true },
             { text: 'RBAC (Roles)', ready: false }
@@ -173,10 +176,10 @@ export default function Billing() {
                             </div>
                             <div style={{ textAlign: 'left' }}>
                                 <h3 style={{ fontSize: '1rem', margin: 0, color: '#60a5fa' }}>
-                                    Free Trial Active
+                                    Free Trial Active ({getTrialDaysLeft()} Days Left)
                                 </h3>
                                 <p style={{ fontSize: '0.9rem', color: '#93c5fd', margin: 0 }}>
-                                    You have <strong>{getTrialDaysLeft()} days left</strong>. Subscribe to keep your agents running.
+                                    Includes <strong>1 Agent</strong> and <strong>1,000 Daily Checks</strong>.
                                 </p>
                             </div>
                         </div>
