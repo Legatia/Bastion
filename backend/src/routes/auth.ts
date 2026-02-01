@@ -109,7 +109,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
                 name: email.split('@')[0],
                 apiKey: generateSecureApiKey(),
                 tier: SubscriptionTier.TRIAL,
-                trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days trial
+                trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
                 referredByCode: referral_code || null,
             },
         });

@@ -7,8 +7,8 @@ const prisma = new PrismaClient();
 // Tier limits configuration
 const TIER_LIMITS: Record<SubscriptionTier, { maxAgents: number; maxDailyChecks: number }> = {
     TRIAL: { maxAgents: 1, maxDailyChecks: 1000 },
-    STARTER: { maxAgents: 1, maxDailyChecks: 1000 },
-    GROWTH: { maxAgents: 5, maxDailyChecks: 10000 },
+    STARTER: { maxAgents: 1, maxDailyChecks: 3000 },
+    GROWTH: { maxAgents: 5, maxDailyChecks: 20000 },
     PRO: { maxAgents: Infinity, maxDailyChecks: 100000 },
     ENTERPRISE: { maxAgents: Infinity, maxDailyChecks: Infinity },
 };
