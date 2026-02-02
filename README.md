@@ -98,7 +98,7 @@ curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | b
 
 ### 2. Get API Key
 ```bash
-# Visit: https://bastion-gamma.vercel.app
+# Visit: https://bastion.legatia.solutions
 # Or via CLI:
 curl -X POST https://bastion-gamma.vercel.app/v1/auth/register \
   -H "Content-Type: application/json" \
@@ -138,7 +138,7 @@ After beta: $15/mo for individuals, $99/mo for teams.
 
 **Self-hosting?** The code is MIT licensed - run it yourself for free!
 
-**[Sign up for hosted beta](https://bastion-gamma.vercel.app/v1/auth/register)** to lock in pricing.
+**[Sign up for hosted beta](https://bastion.legatia.solutions/profile)** to lock in pricing.
 
 ---
 

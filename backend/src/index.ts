@@ -145,6 +145,11 @@ statsRouter.get('/stats', async (req, res, next) => {
 });
 app.use(`/${API_VERSION}`, statsRouter);
 
+// Root route - Serve landing page
+app.get('/', (req: Request, res: Response) => {
+  res.sendFile('index.html', { root: 'public' });
+});
+
 // 404 handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({
