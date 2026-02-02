@@ -294,7 +294,7 @@ async fn handle_login(provided_key: Option<String>, env: String, verbose: bool) 
         k
     } else {
         println!("Please enter your API Key from the Dashboard.");
-        println!("(You can find it at http://localhost:3001/settings after logging in)\n");
+        println!("(You can find it at https://bastion.legatia.solutions/profile after logging in)\n");
 
         // Use password input so it masks the key
         Password::with_theme(&ColorfulTheme::default())
@@ -325,9 +325,9 @@ async fn handle_login(provided_key: Option<String>, env: String, verbose: bool) 
 
     // Determine backend URL based on environment
     let backend_url = match env.as_str() {
-        "prod" | "production" => "https://api.bastion.ai/v1",
+        "prod" | "production" => "https://bastion-gamma.vercel.app/v1",
         "staging" => "https://staging-api.bastion.ai/v1",
-        _ => "http://localhost:3000/v1",
+        _ => "https://bastion-gamma.vercel.app/v1",
     };
 
     // We can infer email from key or just leave it blank for now
@@ -408,7 +408,7 @@ async fn handle_init(verbose: bool) {
     // Get backend URL and API key from config
     let backend_url = config["backend_url"]
         .as_str()
-        .unwrap_or("http://localhost:3000/v1");
+        .unwrap_or("https://bastion-gamma.vercel.app/v1");
     let api_key = config["api_key"].as_str().unwrap_or("");
 
     // Call backend API to create agent
@@ -781,7 +781,7 @@ async fn handle_start(port: u16, command: &[String], daemon: bool, verbose: bool
     if !daemon {
         println!("🚀 Bastion Supervisor active!");
         println!("   Proxy: http://localhost:{}", port);
-        println!("   Dashboard: http://localhost:3001");
+        println!("   Dashboard: https://bastion.legatia.solutions");
         println!("\n📊 Monitoring agent actions...\n");
     }
 
@@ -1040,8 +1040,21 @@ fn load_config() -> Config {
         std::process::exit(1);
     }
 
-    let config: serde_json::Value =
+    let mut config: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+
+    // Auto-migrate old localhost backend URLs to production
+    let mut needs_save = false;
+    if let Some(backend_url) = config["backend_url"].as_str() {
+        if backend_url == "http://localhost:3000/v1" {
+            config["backend_url"] = serde_json::json!("https://bastion-gamma.vercel.app/v1");
+            needs_save = true;
+        }
+    }
+
+    if needs_save {
+        std::fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).ok();
+    }
 
     // Try to load agent config
     let agent_id = if let Ok(agent_config) = std::fs::read_to_string(".bastion-agent.json") {
@@ -1055,7 +1068,7 @@ fn load_config() -> Config {
         api_key: config["api_key"].as_str().unwrap().to_string(),
         backend_url: config["backend_url"]
             .as_str()
-            .unwrap_or("http://localhost:3000/v1")
+            .unwrap_or("https://bastion-gamma.vercel.app/v1")
             .to_string(),
         agent_id,
     }
