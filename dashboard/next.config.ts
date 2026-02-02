@@ -8,11 +8,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/docs',
-        destination: 'https://bastion-docs.vercel.app/docs',
+        destination: 'https://bastion-docs.vercel.app',
       },
       {
         source: '/docs/:path*',
-        destination: 'https://bastion-docs.vercel.app/docs/:path*',
+        destination: 'https://bastion-docs.vercel.app/:path*',
       },
     ]
   },
