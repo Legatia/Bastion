@@ -169,10 +169,11 @@ After beta: $15/mo for individuals, $99/mo for teams.
 
 ## Documentation
 
-- 📖 [Installation Guide](./QUICK_LAUNCH.md)
-- 🔧 [API Reference](./backend/README.md)
-- 🎁 [Referral Program](./backend/POLAR_INTEGRATION_GUIDE.md)
-- 🚀 [Deployment](./backend/VERCEL_DEPLOYMENT.md)
+- 📖 [Getting Started](https://bastion.legatia.solutions/docs/getting-started)
+- 🔧 [API Reference](https://bastion.legatia.solutions/docs/api/reference)
+- 🛡️ [Security Policies](https://bastion.legatia.solutions/docs/policies/overview)
+- 🚀 [CLI Reference](https://bastion.legatia.solutions/docs/cli/overview)
+- 🎁 [Referral Program](https://bastion.legatia.solutions/referrals)
 
 ---
 
