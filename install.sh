@@ -147,6 +147,12 @@ fi
 echo -e "${BLUE}Extracting...${NC}"
 tar -xzf "$TMP_FILE" -C "$BIN_DIR"
 rm "$TMP_FILE"
+
+# Handle legacy binary name if necessary
+if [ -f "$BIN_DIR/bastion-cli" ] && [ ! -f "$BIN_DIR/bastion" ]; then
+    mv "$BIN_DIR/bastion-cli" "$BIN_DIR/bastion"
+fi
+
 chmod +x "$BIN_DIR/bastion"
 
 # Add to PATH

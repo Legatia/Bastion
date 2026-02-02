@@ -45,7 +45,8 @@ jobs:
       - name: Package Binary (Linux/macOS)
         run: |
           cd cli/target/${{ matrix.target }}/release
-          tar -czf ../../../../${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          mv ${{ matrix.artifact_name }} bastion
+          tar -czf ../../../../${{ matrix.asset_name }}.tar.gz bastion
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
