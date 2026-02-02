@@ -1,10 +1,10 @@
 const axios = require('axios');
 
 /**
- * Aegis Protocol Plugin for Clawdbot
- * Intercepts tool calls and verifies them against the local Aegis Sidecar.
+ * Bastion Protocol Plugin for Clawdbot
+ * Intercepts tool calls and verifies them against the local Bastion Sidecar.
  */
-class AegisPlugin {
+class BastionPlugin {
     constructor(config = {}) {
         this.sidecarUrl = config.sidecarUrl || 'http://localhost:3000';
     }
@@ -17,7 +17,7 @@ class AegisPlugin {
      */
     async onToolCall(toolName, args) {
         try {
-            console.log(`[Aegis] Verifying tool call: ${toolName}`);
+            console.log(`[Bastion] Verifying tool call: ${toolName}`);
 
             // 1. Construct the intent payload
             const payload = {
@@ -32,17 +32,17 @@ class AegisPlugin {
             const response = await axios.post(`${this.sidecarUrl}/sign`, payload);
 
             if (response.data && response.data.status === 'signed') {
-                console.log(`[Aegis] Tool call APPROVED. Signature: ${response.data.signature}`);
+                console.log(`[Bastion] Tool call APPROVED. Signature: ${response.data.signature}`);
                 return; // Allowed
             } else {
                 throw new Error('Sidecar refused to sign transaction.');
             }
 
         } catch (error) {
-            console.error(`[Aegis] BLOCKED: ${error.message}`);
-            throw new Error(`Aegis Policy Violation: ${error.message}`);
+            console.error(`[Bastion] BLOCKED: ${error.message}`);
+            throw new Error(`Bastion Policy Violation: ${error.message}`);
         }
     }
 }
 
-module.exports = AegisPlugin;
+module.exports = BastionPlugin;

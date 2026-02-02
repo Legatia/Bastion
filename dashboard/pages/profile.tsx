@@ -170,7 +170,8 @@ export default function Profile() {
                                 </p>
                                 <ol style={{ fontSize: '0.85rem', color: '#bfdbfe', margin: 0, paddingLeft: '1.25rem', lineHeight: '1.8' }}>
                                     <li>Install: <code style={{ background: '#000', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash</code></li>
-                                    <li>Initialize: <code style={{ background: '#000', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion init</code> (paste your API key above)</li>
+                                    <li>Login: <code style={{ background: '#000', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion login</code> (paste your API key above)</li>
+                                    <li>Initialize: <code style={{ background: '#000', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion init</code></li>
                                     <li>Start: <code style={{ background: '#000', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>bastion start</code></li>
                                 </ol>
                             </div>

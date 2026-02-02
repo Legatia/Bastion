@@ -4,9 +4,9 @@
 
 import requests
 
-class AegisAgent:
+class BastionAgent:
     """
-    Wrapper/Mixin for CrewAI Agent to enforce Aegis Policy.
+    Wrapper/Mixin for CrewAI Agent to enforce Bastion Policy.
     """
     def __init__(self, agent_instance, sidecar_url="http://localhost:3000"):
         self.agent = agent_instance
@@ -16,7 +16,7 @@ class AegisAgent:
         """
         Intercepts task execution.
         """
-        print(f"[Aegis] Validating Task: {task.description}")
+        print(f"[Bastion] Validating Task: {task.description}")
         
         payload = {
             "to": "task_execution",
@@ -27,10 +27,10 @@ class AegisAgent:
         try:
             response = requests.post(f"{self.sidecar_url}/sign", json=payload)
             if response.status_code == 200 and response.json().get("status") == "signed":
-                print("[Aegis] Task Approved.")
+                print("[Bastion] Task Approved.")
                 # Proceed with original agent execution
                 return self.agent.execute_task(task)
             else:
-                return "Task Blocked by Aegis Policy."
+                return "Task Blocked by Bastion Policy."
         except Exception as e:
-            return f"Aegis Error: {e}"
+            return f"Bastion Error: {e}"

@@ -98,16 +98,14 @@ curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | b
 
 ### 2. Get API Key
 ```bash
-# Visit: https://bastion.legatia.solutions
-# Or via CLI:
-curl -X POST https://bastion-gamma.vercel.app/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com","password":"yourpass"}'
+# Visit: https://bastion.legatia.solutions/profile
+# Login and copy your API Key
 ```
 
 ### 3. Initialize & Start
 ```bash
-bastion init     # Paste your API key
+bastion login    # Log in with your API key
+bastion init     # Name your agent and set it up
 bastion start    # Proxy runs on localhost:3000
 ```
 

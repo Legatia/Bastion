@@ -326,7 +326,7 @@ async fn handle_login(provided_key: Option<String>, env: String, verbose: bool) 
     // Determine backend URL based on environment
     let backend_url = match env.as_str() {
         "prod" | "production" => "https://bastion-gamma.vercel.app/v1",
-        "staging" => "https://staging-api.bastion.ai/v1",
+        "staging" => "https://bastion-gamma.vercel.app/v1", // Use production for now as staging isn't ready
         _ => "https://bastion-gamma.vercel.app/v1",
     };
 
@@ -490,6 +490,9 @@ async fn handle_init(verbose: bool) {
     }
     println!("\nNext step: Run your agent with Bastion protection:");
     println!("  bastion start -- python agent.py");
+    println!("\nOr route your existing bot by setting these environment variables:");
+    println!("  export HTTP_PROXY=http://localhost:3000");
+    println!("  export HTTPS_PROXY=http://localhost:3000");
 }
 
 async fn handle_enable(agent_type: String, port: u16, configure_only: bool, verbose: bool) {
@@ -611,7 +614,7 @@ async fn configure_openclaw(port: u16, configure_only: bool, verbose: bool) {
     }
 }
 
-async fn configure_autogpt(port: u16, configure_only: bool, verbose: bool) {
+async fn configure_autogpt(port: u16, _configure_only: bool, _verbose: bool) {
     println!("🤖 Auto-GPT support coming soon!");
     println!("\nFor now, you can:");
     println!("1. Set environment variables:");
@@ -621,7 +624,7 @@ async fn configure_autogpt(port: u16, configure_only: bool, verbose: bool) {
     println!("3. Run: autogpt");
 }
 
-async fn configure_langchain(port: u16, configure_only: bool, verbose: bool) {
+async fn configure_langchain(port: u16, _configure_only: bool, _verbose: bool) {
     println!("🦜 LangChain support coming soon!");
     println!("\nFor now, install our middleware:");
     println!("   pip install bastion-langchain");
@@ -630,7 +633,7 @@ async fn configure_langchain(port: u16, configure_only: bool, verbose: bool) {
     println!("   middleware = BastionMiddleware('http://localhost:{}') ", port);
 }
 
-async fn handle_disable(agent_type: String, verbose: bool) {
+async fn handle_disable(agent_type: String, _verbose: bool) {
     println!("🛑 Disabling Bastion for {}\n", agent_type);
     
     match agent_type.to_lowercase().as_str() {
@@ -782,6 +785,9 @@ async fn handle_start(port: u16, command: &[String], daemon: bool, verbose: bool
         println!("🚀 Bastion Supervisor active!");
         println!("   Proxy: http://localhost:{}", port);
         println!("   Dashboard: https://bastion.legatia.solutions");
+        println!("\n💡 To route your existing bots, set these in their terminal:");
+        println!("   export HTTP_PROXY=http://localhost:{}", port);
+        println!("   export HTTPS_PROXY=http://localhost:{}", port);
         println!("\n📊 Monitoring agent actions...\n");
     }
 
@@ -1046,7 +1052,7 @@ fn load_config() -> Config {
     // Auto-migrate old localhost backend URLs to production
     let mut needs_save = false;
     if let Some(backend_url) = config["backend_url"].as_str() {
-        if backend_url == "http://localhost:3000/v1" {
+        if backend_url.contains("localhost:3000") {
             config["backend_url"] = serde_json::json!("https://bastion-gamma.vercel.app/v1");
             needs_save = true;
         }

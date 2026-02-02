@@ -1,7 +1,7 @@
 
-class AegisNode:
+class BastionNode:
     """
-    Aegis Protocol Node for LangGraph.
+    Bastion Protocol Node for LangGraph.
     Intercepts state transitions and validates tool calls against the Sidecar.
     """
     def __init__(self, sidecar_url="http://localhost:3000"):
@@ -34,7 +34,7 @@ class AegisNode:
                          
                 except Exception as e:
                     # Block execution by returning an error state or raising exception
-                    print(f"Aegis Blocked: {e}")
+                    print(f"Bastion Blocked: {e}")
                     return {"messages": [("system", f"Security Policy Violation: {e}")]}
         
         return state
