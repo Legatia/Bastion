@@ -95,9 +95,6 @@ app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger); // Log all requests
 
-// Serve static files (landing page)
-app.use(express.static('public'));
-
 // Apply general rate limit to all API routes
 app.use(`/${API_VERSION}`, apiLimiter);
 
@@ -145,9 +142,39 @@ statsRouter.get('/stats', async (req, res, next) => {
 });
 app.use(`/${API_VERSION}`, statsRouter);
 
-// Root route - Serve landing page
+// Root route - API info and redirect to frontend
 app.get('/', (req: Request, res: Response) => {
-  res.sendFile('index.html', { root: 'public' });
+  // Check if request is from a browser (has Accept: text/html)
+  const acceptsHtml = req.headers.accept?.includes('text/html');
+
+  if (acceptsHtml) {
+    // Redirect browsers to the frontend
+    return res.redirect('https://bastion.legatia.solutions');
+  }
+
+  // Return JSON for API clients
+  res.json({
+    name: 'Bastion Protocol API',
+    version: API_VERSION,
+    status: 'online',
+    documentation: 'https://github.com/Legatia/Bastion',
+    frontend: 'https://bastion.legatia.solutions',
+    endpoints: {
+      health: '/health',
+      auth: {
+        register: `/v1/auth/register`,
+        login: `/v1/auth/login`,
+        google: `/v1/auth/google`,
+      },
+      api: {
+        authorize: `/v1/authorize`,
+        policies: `/v1/policies`,
+        agents: `/v1/agents`,
+        logs: `/v1/logs`,
+        analytics: `/v1/analytics`,
+      },
+    },
+  });
 });
 
 // 404 handler
