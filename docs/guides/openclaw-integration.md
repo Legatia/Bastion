@@ -112,7 +112,7 @@ Once enabled, Bastion intercepts and can block:
 
 ```bash
 # After enabling, create policies via the dashboard:
-# http://localhost:3001/policies
+# https://bastion.legatia.solutions/policies
 
 # Or use the CLI test feature:
 bastion test --action-type http_request --url https://api.openai.com

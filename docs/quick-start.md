@@ -14,15 +14,14 @@ cargo install --path .
 ## Setup
 
 ```bash
-# 1. Start backend (terminal 1)
-cd bastion/backend && npm install && npm run dev
+# 1. Get API key from https://bastion.legatia.solutions/settings
 
-# 2. Start dashboard (terminal 2)
-cd bastion/dashboard && npm install && npm run dev
+# 2. Login with CLI (production backend)
+bastion login --key bst_your_key_here --env prod
 
-# 3. Get API key from http://localhost:3001/settings
-# 4. Login with CLI
-bastion login --key bst_your_key_here
+# Or for local development:
+# cd bastion/backend && npm run dev
+# bastion login --key bst_your_key_here --env dev
 ```
 
 ## Protect Your Agent
@@ -40,7 +39,7 @@ bastion start -- python agent.py
 
 ## Create Your First Policy
 
-1. Open http://localhost:3001/policies
+1. Open https://bastion.legatia.solutions/policies
 2. Click "Create Policy"
 3. Select "Rate Limiting"
 4. Set:

@@ -155,7 +155,7 @@ Framework: custom
 
 ## Step 4: Configure Policies
 
-Open http://localhost:3001/policies and create:
+Open https://bastion.legatia.solutions/policies and create:
 
 ### Policy 1: Rate Limiting
 

@@ -4,7 +4,7 @@ Policies are the rules that control what your AI agents can and cannot do. Basti
 
 ## Policy Types
 
-Bastion supports 8 policy types:
+Bastion supports 9 policy types:
 
 | Type | Purpose | Use Case |
 |------|---------|----------|
@@ -14,7 +14,8 @@ Bastion supports 8 policy types:
 | **Data Loss Prevention** | Detect and block sensitive data | Prevent data leaks |
 | **Time Windows** | Restrict by time/day | Business hours only |
 | **Pattern Matching** | Block dangerous patterns | SQL injection, XSS |
-| **Allow/Block Lists** | Domain/URL control | Explicit permissions |
+| **Allowlist** | Explicitly allow specific actions | Whitelist trusted domains |
+| **Blocklist** | Explicitly block specific actions | Blacklist malicious domains |
 | **Custom Webhooks** | Your own logic | Complex custom rules |
 
 ## How Policies Work
@@ -69,7 +70,7 @@ return { allowed: true }
 
 ### In Dashboard
 
-1. Navigate to http://localhost:3001/policies
+1. Navigate to https://bastion.legatia.solutions/policies
 2. Click "Create Policy"
 3. Select policy type
 4. Configure parameters

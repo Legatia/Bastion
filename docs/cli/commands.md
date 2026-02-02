@@ -165,7 +165,7 @@ bastion start --port 3000
 
 🚀 Bastion Supervisor active!
    Proxy: http://localhost:3000
-   Dashboard: http://localhost:3001
+   Dashboard: https://bastion.legatia.solutions
 
 📊 Monitoring agent actions...
 
@@ -341,6 +341,97 @@ bastion restart --port 8080
 ```
 
 **Note:** This command stops the daemon, but you need to manually start it again with the original command. A future version will remember the command.
+
+---
+
+## Agent Integration
+
+### `bastion enable`
+
+Auto-configure an existing agent to use Bastion protection.
+
+**Usage:**
+```bash
+bastion enable --agent <AGENT_TYPE> [--port <PORT>] [--configure-only]
+```
+
+**Options:**
+- `--agent <TYPE>` - Agent type to configure: `openclaw`, `autogpt`, or `langchain`
+- `--port <PORT>` - Port for Bastion proxy (default: 3000)
+- `--configure-only` - Only update configuration files without starting daemon
+
+**Examples:**
+```bash
+# Enable Bastion for OpenClaw agent
+bastion enable --agent openclaw
+
+# Configure AutoGPT with custom port
+bastion enable --agent autogpt --port 8080
+
+# Configure LangChain without starting daemon
+bastion enable --agent langchain --configure-only
+```
+
+**Output:**
+```
+🛡️  Enabling Bastion Protection
+
+Agent: openclaw
+Proxy Port: 3000
+
+✓ Updated openclaw configuration
+✓ Added proxy settings to config file
+✓ Starting Bastion daemon...
+✅ Bastion enabled successfully
+
+Your agent is now protected. Start it normally.
+```
+
+**What it does:**
+- Modifies agent configuration files to use Bastion proxy
+- For **OpenClaw**: Updates config with `httpProxy` and `httpsProxy` settings
+- For **AutoGPT/LangChain**: Sets environment variables
+- Optionally starts Bastion daemon in background
+
+---
+
+### `bastion disable`
+
+Remove Bastion protection from a configured agent.
+
+**Usage:**
+```bash
+bastion disable --agent <AGENT_TYPE>
+```
+
+**Options:**
+- `--agent <TYPE>` - Agent type to unconfigure: `openclaw`, `autogpt`, or `langchain`
+
+**Examples:**
+```bash
+# Disable Bastion for OpenClaw
+bastion disable --agent openclaw
+
+# Disable Bastion for AutoGPT
+bastion disable --agent autogpt
+```
+
+**Output:**
+```
+🛡️  Disabling Bastion Protection
+
+Agent: openclaw
+
+✓ Removed proxy settings from config
+✅ Bastion disabled successfully
+
+Your agent will now run without Bastion protection.
+```
+
+**What it does:**
+- Removes Bastion proxy configuration from agent files
+- Restores original agent configuration
+- Does not stop running daemon (use `bastion stop` for that)
 
 ---
 
@@ -683,12 +774,70 @@ Troubleshooting:
 
 ---
 
+## Maintenance
+
+### `bastion update`
+
+Update Bastion CLI to the latest version from GitHub releases.
+
+**Usage:**
+```bash
+bastion update
+```
+
+**Examples:**
+```bash
+# Update to latest version
+bastion update
+```
+
+**Output:**
+```
+🔄 Checking for updates...
+
+Current version: 0.1.0
+Latest version: 0.2.0
+
+📥 Downloading update...
+✓ Download complete
+
+🔧 Installing update...
+✓ Installation complete
+
+✅ Bastion CLI updated successfully
+
+Restart your daemon to use the new version:
+  bastion restart
+```
+
+**Output (already latest):**
+```
+🔄 Checking for updates...
+
+Current version: 0.2.0
+Latest version: 0.2.0
+
+✅ You're already on the latest version
+```
+
+**What it does:**
+- Checks GitHub releases for the latest Bastion CLI version
+- Downloads the appropriate binary for your platform (macOS/Linux, ARM64/x86_64)
+- Replaces the current binary with the new version
+- Preserves your configuration and agent settings
+
+**Note:** Requires internet connection and GitHub access.
+
+---
+
 ## Quick Reference
 
 | Command | Purpose | Common Usage |
 |---------|---------|--------------|
 | `bastion login` | Authenticate | `bastion login --key bst_xxx` |
 | `bastion init` | Setup agent | `bastion init` |
+| `bastion enable` | Auto-configure agent | `bastion enable --agent openclaw` |
+| `bastion disable` | Remove Bastion config | `bastion disable --agent openclaw` |
 | `bastion start` | Run agent | `bastion start -- python agent.py` |
 | `bastion stop` | Stop daemon | `bastion stop` |
 | `bastion status` | Check status | `bastion status` |
@@ -701,6 +850,7 @@ Troubleshooting:
 | `bastion test` | Test policies | `bastion test --action-type http_request --url https://api.com` |
 | `bastion validate` | Check config | `bastion validate` |
 | `bastion health` | Check backend | `bastion health` |
+| `bastion update` | Update CLI | `bastion update` |
 
 ## Next Steps
 

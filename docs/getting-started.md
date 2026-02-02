@@ -23,9 +23,21 @@ bastion --version
 # Output: bastion 0.1.0
 ```
 
-## Step 2: Start the Backend
+## Step 2: Choose Your Backend
 
-In a separate terminal, start the Bastion backend:
+You can use either the **hosted backend** (recommended) or run it **locally** for development.
+
+### Option A: Use Hosted Backend (Recommended)
+
+The production backend is already running at `https://bastion-gamma.vercel.app/v1`. No setup needed - just login with `--env prod`:
+
+```bash
+bastion login --key bst_your_api_key --env prod
+```
+
+### Option B: Run Backend Locally (Development)
+
+For local development and testing:
 
 ```bash
 cd bastion/backend
@@ -33,36 +45,26 @@ npm install
 npm run dev
 ```
 
-The backend will start on `http://localhost:3000`.
+The backend will start on `http://localhost:3000/v1`.
 
-## Step 3: Start the Dashboard
+## Step 3: Create an Account
 
-In another terminal, start the dashboard:
-
-```bash
-cd bastion/dashboard
-npm install
-npm run dev
-```
-
-The dashboard will be available at `http://localhost:3001`.
-
-## Step 4: Create an Account
-
-1. Open http://localhost:3001 in your browser
+1. Open https://bastion.legatia.solutions in your browser
 2. Sign up for a new account
 3. Navigate to Settings → API Keys
 4. Generate a new API key
 5. Copy the key (starts with `bst_`)
 
-## Step 5: Login with CLI
+## Step 4: Login with CLI
 
+**Using Production Backend** (recommended):
 ```bash
-bastion login --key bst_your_api_key_here
+bastion login --key bst_your_api_key_here --env prod
+```
 
-# Or use interactive mode
-bastion login
-# Then paste your key when prompted
+**Using Local Backend** (development):
+```bash
+bastion login --key bst_your_api_key_here --env dev
 ```
 
 You should see:
@@ -70,8 +72,8 @@ You should see:
 ✅ Login successful!
 
 Your API Key: bst_d...
-Environment: dev
-Backend URL: http://localhost:3000/v1
+Environment: prod
+Backend URL: https://bastion-gamma.vercel.app/v1
 
 Next step: Run `bastion init` in your agent directory
 ```
@@ -95,7 +97,7 @@ Then just run `openclaw` normally - it's fully protected!
 
 ---
 
-## Step 6: Initialize Your Agent
+## Step 5: Initialize Your Agent
 
 Navigate to your agent's project directory:
 
@@ -142,11 +144,11 @@ This creates a `.bastion-agent.json` file in your project:
 }
 ```
 
-## Step 7: Configure Policies
+## Step 6: Configure Policies
 
 Before running your agent, set up some policies in the dashboard:
 
-1. Go to http://localhost:3001/policies
+1. Go to https://bastion.legatia.solutions/policies
 2. Click "Create Policy"
 3. Choose a policy type (e.g., Rate Limiting)
 4. Configure the policy:
@@ -159,7 +161,7 @@ Before running your agent, set up some policies in the dashboard:
    ```
 5. Save the policy
 
-## Step 8: Run Your Agent
+## Step 7: Run Your Agent
 
 Start your agent with Bastion protection:
 
@@ -181,7 +183,7 @@ Output:
 
 🚀 Bastion Supervisor active!
    Proxy: http://localhost:3000
-   Dashboard: http://localhost:3001
+   Dashboard: https://bastion.legatia.solutions
 
 📊 Monitoring agent actions...
 
@@ -191,7 +193,7 @@ Output:
 
 Your agent is now protected! All HTTP/HTTPS requests will be intercepted and evaluated against your policies.
 
-## Step 9: Monitor Your Agent
+## Step 8: Monitor Your Agent
 
 ### In Real-Time
 Watch the CLI output to see actions being evaluated:
@@ -205,7 +207,7 @@ Watch the CLI output to see actions being evaluated:
 ```
 
 ### In the Dashboard
-Open http://localhost:3001/audit to see:
+Open https://bastion.legatia.solutions/audit to see:
 - All actions (allowed and blocked)
 - Timestamps and details
 - Which policies triggered
@@ -229,7 +231,7 @@ bastion audit --limit 50
 bastion stats --range today
 ```
 
-## Step 10: Test Your Policies
+## Step 9: Test Your Policies
 
 Use the test command to simulate actions without actually executing them:
 

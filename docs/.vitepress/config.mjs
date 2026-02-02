@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Bastion',
   description: 'Programmable Firewall for AI Agents',
+  base: '/docs/',
 
   ignoreDeadLinks: true,
 
@@ -20,7 +21,7 @@ export default defineConfig({
       { text: 'API', link: '/api/reference' },
       {
         text: 'Dashboard',
-        link: 'http://localhost:3001'
+        link: 'https://bastion.legatia.solutions/'
       }
     ],
 

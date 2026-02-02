@@ -61,7 +61,7 @@ source ~/.bashrc
 bastion login --key bst_your_api_key
 ```
 
-Get your API key from: http://localhost:3001/settings
+Get your API key from: https://bastion.legatia.solutions/settings
 
 ### Invalid API Key
 
@@ -285,21 +285,27 @@ kill -9 <PID>
 
 **Solution:**
 
-1. **Check backend is running:**
-   ```bash
-   # Terminal 1
-   cd backend
-   npm run dev
-   ```
-
-2. **Verify backend URL:**
+1. **Check backend URL in your config:**
    ```bash
    cat ~/.bastion/config.json
-   # Should show: "backend_url": "http://localhost:3000/v1"
    ```
 
-3. **Test backend directly:**
+   Should show one of:
+   - Production: `"backend_url": "https://bastion-gamma.vercel.app/v1"`
+   - Development: `"backend_url": "http://localhost:3000/v1"`
+
+2. **If using production backend:**
    ```bash
+   curl https://bastion-gamma.vercel.app/health
+   # Should return: {"status":"healthy"}
+   ```
+
+3. **If using local backend:**
+   ```bash
+   # Make sure it's running:
+   cd backend && npm run dev
+
+   # Test it:
    curl http://localhost:3000/health
    ```
 
@@ -353,7 +359,7 @@ Every request shows:
 **Solution:**
 
 1. **Check policies in dashboard:**
-   - Go to http://localhost:3001/policies
+   - Go to https://bastion.legatia.solutions/policies
    - Look for overly restrictive policies
    - Temporarily disable policies to isolate issue
 

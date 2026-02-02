@@ -54,4 +54,4 @@ For AutoGPT, we recommend:
 - **DLP**: Enable to prevent API key leakage
 - **File Protection**: Protect critical system directories
 
-[Create policies in Dashboard →](http://localhost:3001/policies)
+[Create policies in Dashboard →](https://bastion.legatia.solutions/policies)
