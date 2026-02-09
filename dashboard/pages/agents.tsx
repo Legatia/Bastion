@@ -2,7 +2,9 @@ import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Navbar from '../components/Navbar';
-import { Bot, Plus, Trash2, Activity, AlertCircle } from 'lucide-react';
+import VerifyAgentModal from '../components/VerifyAgentModal';
+import AgentHealthBadge from '../components/AgentHealthBadge';
+import { Bot, Plus, Trash2, Activity, AlertCircle, Shield, CheckCircle } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface Agent {
@@ -12,6 +14,10 @@ interface Agent {
     status: string;
     lastSeenAt?: string;
     createdAt: string;
+    // ERC-8004 fields
+    onchainId?: string;
+    registryChain?: string;
+    ownerAddress?: string;
 }
 
 export default function Agents() {
@@ -21,6 +27,8 @@ export default function Agents() {
     const [newAgentName, setNewAgentName] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [error, setError] = useState('');
+    const [verifyingAgent, setVerifyingAgent] = useState<Agent | null>(null);
+    const [healthScores, setHealthScores] = useState<Record<string, { score: number; status: string; flags: string[] }>>({});
 
     useEffect(() => {
         const key = localStorage.getItem('bastion_api_key');
@@ -33,9 +41,22 @@ export default function Agents() {
 
     const fetchAgents = () => {
         api.get<{ agents: Agent[] }>('/agents')
-            .then(data => setAgents(data.agents))
+            .then(data => {
+                setAgents(data.agents);
+                // Fetch health for each agent
+                data.agents.forEach(agent => fetchHealth(agent.id));
+            })
             .catch(err => console.error("Failed to fetch agents", err))
             .finally(() => setLoading(false));
+    };
+
+    const fetchHealth = async (agentId: string) => {
+        try {
+            const health = await api.get<{ score: number; status: string; flags: string[] }>(`/agents/${agentId}/health`);
+            setHealthScores(prev => ({ ...prev, [agentId]: health }));
+        } catch {
+            // Health not available yet
+        }
     };
 
     const createAgent = async () => {
@@ -161,13 +182,43 @@ export default function Agents() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                     <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: getStatusColor(agent.status) }} />
                                     <div>
-                                        <h4 style={{ margin: 0, fontWeight: '600' }}>{agent.name}</h4>
+                                        <h4 style={{ margin: 0, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            {agent.name}
+                                            {healthScores[agent.id] && (
+                                                <AgentHealthBadge
+                                                    score={healthScores[agent.id].score}
+                                                    status={healthScores[agent.id].status as any}
+                                                    flags={healthScores[agent.id].flags}
+                                                    size="sm"
+                                                />
+                                            )}
+                                        </h4>
                                         <p style={{ color: '#888', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
                                             ID: {agent.id.substring(0, 8)}... • Created {new Date(agent.createdAt).toLocaleDateString()}
                                         </p>
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    {agent.onchainId ? (
+                                        <span style={{
+                                            padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600',
+                                            background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+                                            display: 'flex', alignItems: 'center', gap: '4px'
+                                        }}>
+                                            <CheckCircle size={12} /> Verified #{agent.onchainId}
+                                        </span>
+                                    ) : (
+                                        <button
+                                            onClick={() => setVerifyingAgent(agent)}
+                                            style={{
+                                                background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)',
+                                                padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600',
+                                                fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px'
+                                            }}
+                                        >
+                                            <Shield size={14} /> Get Verified
+                                        </button>
+                                    )}
                                     <span style={{
                                         padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600',
                                         background: agent.status === 'ACTIVE' ? 'rgba(34,197,94,0.1)' : 'rgba(136,136,136,0.1)',
@@ -187,6 +238,15 @@ export default function Agents() {
                     </div>
                 )}
             </main>
+
+            {/* Verification Modal */}
+            {verifyingAgent && (
+                <VerifyAgentModal
+                    agent={verifyingAgent}
+                    onClose={() => setVerifyingAgent(null)}
+                    onSuccess={fetchAgents}
+                />
+            )}
         </div>
     );
 }

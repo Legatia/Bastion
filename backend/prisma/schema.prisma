@@ -75,6 +75,14 @@ model Agent {
   status      AgentStatus @default(ACTIVE)
   lastSeenAt  DateTime?
 
+  // ERC-8004 On-chain Identity
+  onchainId       String?   // tokenId from registry
+  registryChain   String?   // "base-sepolia" | "base"
+  registryAddress String?   // Identity Registry contract address
+  agentURI        String?   // URL to registration file
+  ownerAddress    String?   // Wallet that owns the NFT
+  registeredAt    DateTime? // When agent was verified on-chain
+
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -82,6 +90,12 @@ model Agent {
   // Relations
   user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
   actionLogs  ActionLog[]
+  
+  // MoltMind Relations
+  behavioralEvents  BehavioralEvent[]
+  baselines         AgentBaseline[]
+  cognitiveAlerts   CognitiveAlert[]
+  healthScores      AgentHealthScore[]
 
   @@map("agents")
 }
@@ -90,6 +104,113 @@ enum AgentStatus {
   ACTIVE
   INACTIVE
   BLOCKED
+}
+
+// ========================================
+// MoltMind - Cognitive Monitoring Models
+// ========================================
+
+// Behavioral events captured from traffic
+model BehavioralEvent {
+  id          String   @id @default(uuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  // Event classification
+  eventType   String   // 'api_call', 'message_send', 'payment', 'code_action'
+  endpoint    String   // Normalized destination URL/API
+  method      String   // HTTP method
+  
+  // Behavioral signals (not content itself)
+  contentLength    Int?
+  contentHash      String?      // SHA256 hash for dedup, not content
+  sentimentScore   Float?       // -1.0 to 1.0
+  topicTags        String[]     // ['finance', 'social', 'technical']
+  
+  // Interaction metadata
+  targetAgentId    String?      // If interacting with another agent
+  responseTimeMs   Int?
+  
+  // Timing
+  timestamp        DateTime     @default(now())
+  
+  @@index([agentId, timestamp])
+  @@index([agentId, eventType])
+  @@map("behavioral_events")
+}
+
+// Computed baselines per agent
+model AgentBaseline {
+  id          String   @id @default(uuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  // Baseline window
+  windowStart DateTime
+  windowEnd   DateTime
+  eventCount  Int
+  
+  // Behavioral metrics (stored as JSON for flexibility)
+  metrics     Json
+  // Example: { requestRate: {mean, stddev}, sentimentMean, topEndpoints, activeHours }
+  
+  isActive    Boolean  @default(true)  // Current baseline
+  createdAt   DateTime @default(now())
+  
+  @@index([agentId, isActive])
+  @@map("agent_baselines")
+}
+
+// Drift events / anomalies detected
+model CognitiveAlert {
+  id          String   @id @default(uuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  alertType   String   // 'identity_drift', 'manipulation_detected', 'anomaly'
+  severity    String   // 'low', 'medium', 'high', 'critical'
+  
+  // What triggered it
+  metric      String   // Which metric drifted
+  baselineValue Float?
+  currentValue  Float?
+  driftScore    Float   // How far from baseline (0-1)
+  
+  // Context
+  details     Json     // Additional context
+  
+  // Status
+  acknowledged Boolean @default(false)
+  resolvedAt   DateTime?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([agentId, createdAt])
+  @@index([alertType, severity])
+  @@map("cognitive_alerts")
+}
+
+// Agent health score (computed periodically)
+model AgentHealthScore {
+  id          String   @id @default(uuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  // Overall score
+  overallScore        Int      // 0-100
+  
+  // Component scores
+  identityCoherence   Int      // 0-100
+  behavioralStability Int      // 0-100
+  interactionHealth   Int      // 0-100
+  
+  // Flags
+  activeFlags     String[]  // ['high_drift', 'new_partner_dominant', etc]
+  
+  computedAt      DateTime @default(now())
+  
+  @@index([agentId, computedAt])
+  @@map("agent_health_scores")
 }
 
 // Policies (Security Rules)

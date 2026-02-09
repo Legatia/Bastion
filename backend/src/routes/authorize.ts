@@ -8,6 +8,7 @@ import { authenticateApiKey } from '../middleware/auth';
 import { AuthorizeRequest, AuthorizeResponse } from '../types';
 import { QuotaService } from '../services/quota-service';
 import { EncryptionService } from '../services/encryption-service';
+import { behavioralCollector } from '../services/behavioralCollector';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -88,6 +89,19 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
     });
 
     const latencyMs = Date.now() - startTime;
+
+    // MoltMind: Collect behavioral event (async, don't block response)
+    if (agent_id) {
+      behavioralCollector
+        .collectEvent({
+          agentId: agent_id,
+          method: action.type,
+          url: action.details?.url || action.details?.endpoint || action.type,
+          requestBody: action.details ? JSON.stringify(action.details) : undefined,
+          responseTimeMs: latencyMs,
+        })
+        .catch((err) => console.error('[MoltMind] Collection error:', err));
+    }
 
     // Log the action (with encryption for privacy)
     // Encrypt action details using user's API key for zero-knowledge audit logs
