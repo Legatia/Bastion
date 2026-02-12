@@ -1,29 +1,32 @@
 /**
  * MoltMind Cognitive Monitoring Routes
  * Endpoints for agent health scores, alerts, and baselines
+ *
+ * Feature gating:
+ *   - /health → MOLTMIND_HEALTH (STARTER+)
+ *   - /alerts, /alerts/:id/acknowledge, /baseline, /baseline/refresh, /analyze → MOLTMIND_FULL (PRO only)
  */
 
 import { Router, Request, Response } from 'express';
 import { authenticateApiKey } from '../middleware/auth';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { driftDetector } from '../services/driftDetector';
 import { baselineEngine } from '../services/baselineEngine';
+import { QuotaService } from '../services/quota-service';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * GET /v1/agents/:id/health
- * Get current health score for an agent
+ * Get current health score for an agent (STARTER+)
  */
 router.get(
-    '/v1/agents/:id/health',
+    '/agents/:id/health',
     authenticateApiKey,
     async (req: Request, res: Response): Promise<any> => {
         try {
             const agentId = req.params.id as string;
 
-            // Verify agent belongs to user
             const agent = await prisma.agent.findFirst({
                 where: { id: agentId, userId: req.user!.id },
             });
@@ -32,11 +35,14 @@ router.get(
                 return res.status(404).json({ error: 'Agent not found' });
             }
 
-            // Get health score
+            const access = await QuotaService.checkFeatureAccess(req.user!.id, 'MOLTMIND_HEALTH');
+            if (!access.allowed) {
+                return res.status(403).json({ error: 'UPGRADE_REQUIRED', reason: access.message });
+            }
+
             const health = await driftDetector.getHealthScore(agentId);
 
             if (!health) {
-                // No health score yet, run drift detection
                 const result = await driftDetector.detectDrift(agentId);
                 return res.json({
                     score: result.overallScore,
@@ -61,23 +67,27 @@ router.get(
 
 /**
  * GET /v1/agents/:id/alerts
- * Get cognitive alerts for an agent
+ * Get cognitive alerts for an agent (PRO only)
  */
 router.get(
-    '/v1/agents/:id/alerts',
+    '/agents/:id/alerts',
     authenticateApiKey,
     async (req: Request, res: Response): Promise<any> => {
         try {
             const agentId = req.params.id as string;
             const limit = parseInt(req.query.limit as string) || 20;
 
-            // Verify agent belongs to user
             const agent = await prisma.agent.findFirst({
                 where: { id: agentId, userId: req.user!.id },
             });
 
             if (!agent) {
                 return res.status(404).json({ error: 'Agent not found' });
+            }
+
+            const access = await QuotaService.checkFeatureAccess(req.user!.id, 'MOLTMIND_FULL');
+            if (!access.allowed) {
+                return res.status(403).json({ error: 'UPGRADE_REQUIRED', reason: access.message });
             }
 
             const alerts = await driftDetector.getAlerts(agentId, limit);
@@ -92,17 +102,16 @@ router.get(
 
 /**
  * POST /v1/agents/:id/alerts/:alertId/acknowledge
- * Acknowledge an alert
+ * Acknowledge an alert (PRO only)
  */
 router.post(
-    '/v1/agents/:id/alerts/:alertId/acknowledge',
+    '/agents/:id/alerts/:alertId/acknowledge',
     authenticateApiKey,
     async (req: Request, res: Response): Promise<any> => {
         try {
             const agentId = req.params.id as string;
             const alertId = req.params.alertId as string;
 
-            // Verify agent belongs to user
             const agent = await prisma.agent.findFirst({
                 where: { id: agentId, userId: req.user!.id },
             });
@@ -111,7 +120,11 @@ router.post(
                 return res.status(404).json({ error: 'Agent not found' });
             }
 
-            // Verify alert belongs to agent
+            const access = await QuotaService.checkFeatureAccess(req.user!.id, 'MOLTMIND_FULL');
+            if (!access.allowed) {
+                return res.status(403).json({ error: 'UPGRADE_REQUIRED', reason: access.message });
+            }
+
             const alert = await prisma.cognitiveAlert.findFirst({
                 where: { id: alertId, agentId },
             });
@@ -132,22 +145,26 @@ router.post(
 
 /**
  * GET /v1/agents/:id/baseline
- * Get baseline metrics for an agent
+ * Get baseline metrics for an agent (PRO only)
  */
 router.get(
-    '/v1/agents/:id/baseline',
+    '/agents/:id/baseline',
     authenticateApiKey,
     async (req: Request, res: Response): Promise<any> => {
         try {
             const agentId = req.params.id as string;
 
-            // Verify agent belongs to user
             const agent = await prisma.agent.findFirst({
                 where: { id: agentId, userId: req.user!.id },
             });
 
             if (!agent) {
                 return res.status(404).json({ error: 'Agent not found' });
+            }
+
+            const access = await QuotaService.checkFeatureAccess(req.user!.id, 'MOLTMIND_FULL');
+            if (!access.allowed) {
+                return res.status(403).json({ error: 'UPGRADE_REQUIRED', reason: access.message });
             }
 
             const baseline = await baselineEngine.getBaseline(agentId);
@@ -176,22 +193,26 @@ router.get(
 
 /**
  * POST /v1/agents/:id/baseline/refresh
- * Force recalculation of baseline
+ * Force recalculation of baseline (PRO only)
  */
 router.post(
-    '/v1/agents/:id/baseline/refresh',
+    '/agents/:id/baseline/refresh',
     authenticateApiKey,
     async (req: Request, res: Response): Promise<any> => {
         try {
             const agentId = req.params.id as string;
 
-            // Verify agent belongs to user
             const agent = await prisma.agent.findFirst({
                 where: { id: agentId, userId: req.user!.id },
             });
 
             if (!agent) {
                 return res.status(404).json({ error: 'Agent not found' });
+            }
+
+            const access = await QuotaService.checkFeatureAccess(req.user!.id, 'MOLTMIND_FULL');
+            if (!access.allowed) {
+                return res.status(403).json({ error: 'UPGRADE_REQUIRED', reason: access.message });
             }
 
             const baseline = await baselineEngine.calculateBaseline(agentId);
@@ -216,23 +237,27 @@ router.post(
 
 /**
  * POST /v1/agents/:id/analyze
- * Run drift detection on demand
+ * Run drift detection on demand (PRO only)
  */
 router.post(
-    '/v1/agents/:id/analyze',
+    '/agents/:id/analyze',
     authenticateApiKey,
     async (req: Request, res: Response): Promise<any> => {
         try {
             const agentId = req.params.id as string;
             const windowHours = parseInt(req.body.windowHours as string) || 24;
 
-            // Verify agent belongs to user
             const agent = await prisma.agent.findFirst({
                 where: { id: agentId, userId: req.user!.id },
             });
 
             if (!agent) {
                 return res.status(404).json({ error: 'Agent not found' });
+            }
+
+            const access = await QuotaService.checkFeatureAccess(req.user!.id, 'MOLTMIND_FULL');
+            if (!access.allowed) {
+                return res.status(403).json({ error: 'UPGRADE_REQUIRED', reason: access.message });
             }
 
             const result = await driftDetector.detectDrift(agentId, windowHours);

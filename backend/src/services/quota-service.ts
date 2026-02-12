@@ -1,19 +1,81 @@
-// Quota Service - Enforces subscription tier limits
+// Quota Service - Enforces tier-based limits and feature gating
 
-import { PrismaClient, SubscriptionTier } from '@prisma/client';
+import { SubscriptionTier } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
-const prisma = new PrismaClient();
+// Tier feature types
+export type TierFeature =
+    | 'CDP_WALLET' | 'ERC8004_DAILY' | 'ERC8004_REALTIME'
+    | 'MOLTMIND_HEALTH' | 'MOLTMIND_FULL' | 'X402' | 'OPENCLAW';
 
-// Tier limits configuration
-const TIER_LIMITS: Record<SubscriptionTier, { maxAgents: number; maxDailyChecks: number }> = {
-    TRIAL: { maxAgents: 1, maxDailyChecks: 1000 },
-    STARTER: { maxAgents: 1, maxDailyChecks: 3000 },
-    GROWTH: { maxAgents: 5, maxDailyChecks: 20000 },
-    PRO: { maxAgents: Infinity, maxDailyChecks: 100000 },
-    ENTERPRISE: { maxAgents: Infinity, maxDailyChecks: Infinity },
+// Unified tier configuration
+export const TIER_CONFIG: Record<SubscriptionTier, {
+    maxAgents: number;
+    maxDailyChecks: number;
+    features: TierFeature[];
+}> = {
+    FREE:       { maxAgents: 2,        maxDailyChecks: 1000,     features: [] },
+    STARTER:    { maxAgents: 10,       maxDailyChecks: 50000,    features: ['CDP_WALLET', 'ERC8004_DAILY', 'MOLTMIND_HEALTH', 'X402'] },
+    PRO:        { maxAgents: 25,       maxDailyChecks: Infinity, features: ['CDP_WALLET', 'ERC8004_DAILY', 'ERC8004_REALTIME', 'MOLTMIND_HEALTH', 'MOLTMIND_FULL', 'X402'] },
+    ENTERPRISE: { maxAgents: Infinity, maxDailyChecks: Infinity, features: ['CDP_WALLET', 'ERC8004_DAILY', 'ERC8004_REALTIME', 'MOLTMIND_HEALTH', 'MOLTMIND_FULL', 'X402'] },
 };
 
+// In-memory TTL cache for feature access checks
+const FEATURE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const featureCache = new Map<string, { allowed: boolean; message?: string; cachedAt: number }>();
+
 export class QuotaService {
+    /**
+     * Check if user has access to a tier feature
+     */
+    static async checkFeatureAccess(
+        userId: string,
+        feature: TierFeature
+    ): Promise<{ allowed: boolean; message?: string }> {
+        // Check cache
+        const cacheKey = `${userId}:feature:${feature}`;
+        const cached = featureCache.get(cacheKey);
+        if (cached && Date.now() - cached.cachedAt < FEATURE_CACHE_TTL_MS) {
+            return { allowed: cached.allowed, message: cached.message };
+        }
+
+        // OpenClaw is special-cased via user flag
+        if (feature === 'OPENCLAW') {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { openclawPurchased: true },
+            });
+            const result = user?.openclawPurchased
+                ? { allowed: true }
+                : { allowed: false, message: 'OpenClaw license not purchased. Purchase for $99 one-time.' };
+            featureCache.set(cacheKey, { ...result, cachedAt: Date.now() });
+            return result;
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { tier: true },
+        });
+
+        if (!user) {
+            return { allowed: false, message: 'User not found' };
+        }
+
+        const config = TIER_CONFIG[user.tier];
+        const allowed = config.features.includes(feature);
+
+        // Determine the minimum tier that includes this feature
+        const tierOrder: SubscriptionTier[] = ['FREE', 'STARTER', 'PRO', 'ENTERPRISE'];
+        const minTier = tierOrder.find(t => TIER_CONFIG[t].features.includes(feature)) || 'STARTER';
+
+        const result = allowed
+            ? { allowed: true }
+            : { allowed: false, message: `${feature} requires ${minTier} tier or higher. Upgrade your plan to access this feature.` };
+
+        featureCache.set(cacheKey, { ...result, cachedAt: Date.now() });
+        return result;
+    }
+
     /**
      * Check if user can create a new agent
      */
@@ -32,20 +94,20 @@ export class QuotaService {
             return { allowed: false, current: 0, max: 0, message: 'User not found' };
         }
 
-        const limits = TIER_LIMITS[user.tier];
+        const config = TIER_CONFIG[user.tier];
         const agentCount = await prisma.agent.count({
             where: { userId },
         });
 
-        const allowed = agentCount < limits.maxAgents;
+        const allowed = agentCount < config.maxAgents;
 
         return {
             allowed,
             current: agentCount,
-            max: limits.maxAgents,
+            max: config.maxAgents,
             message: allowed
                 ? undefined
-                : `Agent limit reached (${agentCount}/${limits.maxAgents}). Upgrade your plan to add more agents.`,
+                : `Agent limit reached (${agentCount}/${config.maxAgents}). Upgrade your plan to add more agents.`,
         };
     }
 
@@ -67,9 +129,8 @@ export class QuotaService {
             return { allowed: false, current: 0, max: 0, message: 'User not found' };
         }
 
-        const limits = TIER_LIMITS[user.tier];
+        const config = TIER_CONFIG[user.tier];
 
-        // Get today's usage
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -83,15 +144,15 @@ export class QuotaService {
         });
 
         const checksToday = usage?.checksCount || 0;
-        const allowed = checksToday < limits.maxDailyChecks;
+        const allowed = checksToday < config.maxDailyChecks;
 
         return {
             allowed,
             current: checksToday,
-            max: limits.maxDailyChecks,
+            max: config.maxDailyChecks,
             message: allowed
                 ? undefined
-                : `Daily check limit reached (${checksToday}/${limits.maxDailyChecks}). Upgrade your plan for more checks.`,
+                : `Daily check limit reached (${checksToday}/${config.maxDailyChecks}). Upgrade your plan for more checks.`,
         };
     }
 
@@ -100,20 +161,20 @@ export class QuotaService {
      */
     static async getUsageSummary(userId: string): Promise<{
         tier: string;
-        trialEndsAt: string | null;
         agents: { current: number; max: number };
         dailyChecks: { current: number; max: number };
+        features: TierFeature[];
     }> {
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { tier: true, trialEndsAt: true },
+            select: { tier: true },
         });
 
         if (!user) {
             throw new Error('User not found');
         }
 
-        const limits = TIER_LIMITS[user.tier];
+        const config = TIER_CONFIG[user.tier];
 
         const agentCount = await prisma.agent.count({
             where: { userId },
@@ -133,15 +194,33 @@ export class QuotaService {
 
         return {
             tier: user.tier,
-            trialEndsAt: user.trialEndsAt ? user.trialEndsAt.toISOString() : null,
             agents: {
                 current: agentCount,
-                max: limits.maxAgents === Infinity ? -1 : limits.maxAgents, // -1 indicates unlimited
+                max: config.maxAgents === Infinity ? -1 : config.maxAgents,
             },
             dailyChecks: {
                 current: usage?.checksCount || 0,
-                max: limits.maxDailyChecks === Infinity ? -1 : limits.maxDailyChecks,
+                max: config.maxDailyChecks === Infinity ? -1 : config.maxDailyChecks,
             },
+            features: config.features,
         };
+    }
+
+    /**
+     * Invalidate feature cache for a user (call after tier changes)
+     */
+    static invalidateFeatureCache(userId: string): void {
+        for (const key of featureCache.keys()) {
+            if (key.startsWith(`${userId}:`)) {
+                featureCache.delete(key);
+            }
+        }
+    }
+
+    /**
+     * Alias for backward compat
+     */
+    static invalidateModuleCache(userId: string): void {
+        this.invalidateFeatureCache(userId);
     }
 }

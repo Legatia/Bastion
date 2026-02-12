@@ -3,10 +3,8 @@
  * Compares recent behavior against baseline to detect anomalies
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { baselineEngine, BaselineMetrics } from './baselineEngine';
-
-const prisma = new PrismaClient();
 
 export interface DriftResult {
     hasDrift: boolean;
@@ -34,6 +32,9 @@ export class DriftDetector {
         critical: 3.0,
     };
 
+    // Dedup window: don't create duplicate alerts within this period
+    private readonly ALERT_DEDUP_HOURS = 24;
+
     /**
      * Analyze recent behavior against baseline
      * Default: last 24 hours vs baseline
@@ -50,18 +51,46 @@ export class DriftDetector {
             };
         }
 
-        // Get recent events
+        // Time window
         const windowStart = new Date();
         windowStart.setHours(windowStart.getHours() - windowHours);
 
-        const recentEvents = await prisma.behavioralEvent.findMany({
-            where: {
-                agentId,
-                timestamp: { gte: windowStart },
-            },
-        });
+        // Run all aggregation queries in parallel (no findMany — DB does the work)
+        const [
+            eventCount,
+            aggregates,
+            endpointCounts,
+            partnerCounts,
+        ] = await Promise.all([
+            prisma.behavioralEvent.count({
+                where: { agentId, timestamp: { gte: windowStart } },
+            }),
+            prisma.behavioralEvent.aggregate({
+                where: { agentId, timestamp: { gte: windowStart } },
+                _avg: { sentimentScore: true, responseTimeMs: true },
+                _count: { sentimentScore: true, responseTimeMs: true },
+            }),
+            prisma.behavioralEvent.groupBy({
+                by: ['endpoint'],
+                where: { agentId, timestamp: { gte: windowStart } },
+                _count: true,
+                orderBy: { _count: { endpoint: 'desc' } },
+                take: 20,
+            }),
+            prisma.behavioralEvent.groupBy({
+                by: ['targetAgentId'],
+                where: {
+                    agentId,
+                    timestamp: { gte: windowStart },
+                    targetAgentId: { not: null },
+                },
+                _count: true,
+                orderBy: { _count: { targetAgentId: 'desc' } },
+                take: 10,
+            }),
+        ]);
 
-        if (recentEvents.length < 10) {
+        if (eventCount < 10) {
             return {
                 hasDrift: false,
                 overallScore: 50,
@@ -74,7 +103,7 @@ export class DriftDetector {
         const alerts: DriftResult['alerts'] = [];
 
         // Check request rate
-        const currentRate = recentEvents.length / windowHours;
+        const currentRate = eventCount / windowHours;
         const rateZScore = this.zScore(currentRate, baseline.requestRate.mean, baseline.requestRate.stddev);
         components.push({
             metric: 'request_rate',
@@ -92,10 +121,9 @@ export class DriftDetector {
             });
         }
 
-        // Check sentiment drift
-        const recentSentiments = recentEvents.map((e) => e.sentimentScore).filter(Boolean) as number[];
-        if (recentSentiments.length > 5 && baseline.sentimentStddev > 0) {
-            const currentSentiment = this.mean(recentSentiments);
+        // Check sentiment drift (using DB-computed average)
+        if (aggregates._count.sentimentScore > 5 && baseline.sentimentStddev > 0) {
+            const currentSentiment = aggregates._avg.sentimentScore || 0;
             const sentimentZScore = this.zScore(currentSentiment, baseline.sentimentMean, baseline.sentimentStddev);
             components.push({
                 metric: 'sentiment',
@@ -114,32 +142,60 @@ export class DriftDetector {
             }
         }
 
-        // Check for new dominant interaction partner
-        const partnerDrift = this.checkInteractionPartnerDrift(recentEvents, baseline);
+        // Check response time drift (using DB-computed average)
+        if (baseline.responseTime && baseline.responseTime.stddev > 0 && aggregates._count.responseTimeMs > 5) {
+            const currentResponseTime = aggregates._avg.responseTimeMs || 0;
+            const rtZScore = this.zScore(
+                currentResponseTime,
+                baseline.responseTime.mean,
+                baseline.responseTime.stddev
+            );
+            components.push({
+                metric: 'response_time',
+                baselineValue: baseline.responseTime.mean,
+                currentValue: currentResponseTime,
+                zScore: rtZScore,
+                severity: this.getSeverity(rtZScore),
+            });
+
+            if (Math.abs(rtZScore) > this.THRESHOLDS.high) {
+                alerts.push({
+                    type: 'response_time_anomaly',
+                    severity: rtZScore > 0 ? 'high' : 'medium',
+                    message: `Response time ${rtZScore > 0 ? 'spike' : 'drop'}: ${currentResponseTime.toFixed(0)}ms vs baseline ${baseline.responseTime.mean.toFixed(0)}ms`,
+                });
+            }
+        }
+
+        // Check for new dominant interaction partner (from DB groupBy)
+        const partnerDrift = this.checkInteractionPartnerDrift(partnerCounts, baseline);
         if (partnerDrift) {
             components.push(partnerDrift.component);
             if (partnerDrift.alert) alerts.push(partnerDrift.alert);
         }
 
-        // Check endpoint distribution shift
-        const endpointDrift = this.checkEndpointDrift(recentEvents, baseline);
+        // Check endpoint distribution shift (from DB groupBy)
+        const endpointDrift = this.checkEndpointDrift(endpointCounts, eventCount, baseline);
         if (endpointDrift) {
             components.push(endpointDrift.component);
             if (endpointDrift.alert) alerts.push(endpointDrift.alert);
         }
 
         // Calculate overall health score
-        const avgZScore = this.mean(components.map((c) => Math.abs(c.zScore)));
+        const absZScores = components.map((c) => Math.abs(c.zScore));
+        const avgZScore = absZScores.length > 0 ? this.mean(absZScores) : 0;
         const overallScore = Math.max(0, Math.min(100, 100 - avgZScore * 20));
 
-        // Save alerts to database
+        // Save alerts (with dedup)
         for (const alert of alerts) {
             const component = components.find((c) => c.metric === alert.type.split('_')[0]) || components[0];
-            await this.saveAlert(agentId, alert, component);
+            if (component) {
+                await this.saveAlertIfNew(agentId, alert, component);
+            }
         }
 
-        // Update health score
-        await this.updateHealthScore(agentId, overallScore, components, alerts);
+        // Update health score (upsert)
+        await this.upsertHealthScore(agentId, overallScore, components, alerts);
 
         return {
             hasDrift: alerts.some((a) => a.severity === 'high' || a.severity === 'critical'),
@@ -226,26 +282,19 @@ export class DriftDetector {
     // ========================
 
     private checkInteractionPartnerDrift(
-        recentEvents: any[],
+        partnerCounts: { targetAgentId: string | null; _count: number }[],
         baseline: BaselineMetrics
     ): { component: DriftResult['components'][0]; alert?: DriftResult['alerts'][0] } | null {
-        const recentPartners: Record<string, number> = {};
-        recentEvents.forEach((e) => {
-            if (e.targetAgentId) {
-                recentPartners[e.targetAgentId] = (recentPartners[e.targetAgentId] || 0) + 1;
-            }
-        });
+        const validPartners = partnerCounts.filter((p) => p.targetAgentId);
+        if (validPartners.length === 0) return null;
 
-        const partnerInteractions = Object.entries(recentPartners);
-        if (partnerInteractions.length === 0) return null;
-
-        // Check if a new agent is dominating interactions
-        const topPartner = partnerInteractions.sort((a, b) => b[1] - a[1])[0];
-        const [partnerId, count] = topPartner;
-        const totalInteractions = partnerInteractions.reduce((sum, [_, c]) => sum + c, 0);
+        // Already sorted desc by _count from the DB groupBy
+        const topPartner = validPartners[0];
+        const partnerId = topPartner.targetAgentId!;
+        const count = topPartner._count;
+        const totalInteractions = validPartners.reduce((sum, p) => sum + p._count, 0);
         const dominanceRatio = count / totalInteractions;
 
-        // Was this partner in baseline top interactions?
         const baselinePartnerCount = baseline.topInteractionPartners[partnerId] || 0;
         const isNewDominant = dominanceRatio > 0.4 && baselinePartnerCount < 5;
 
@@ -272,34 +321,31 @@ export class DriftDetector {
     }
 
     private checkEndpointDrift(
-        recentEvents: any[],
+        endpointCounts: { endpoint: string; _count: number }[],
+        totalEvents: number,
         baseline: BaselineMetrics
     ): { component: DriftResult['components'][0]; alert?: DriftResult['alerts'][0] } | null {
-        const recentEndpoints: Record<string, number> = {};
-        recentEvents.forEach((e) => {
-            recentEndpoints[e.endpoint] = (recentEndpoints[e.endpoint] || 0) + 1;
-        });
+        if (endpointCounts.length === 0) return null;
 
-        const total = recentEvents.length;
         const recentDistribution: Record<string, number> = {};
-        Object.entries(recentEndpoints).forEach(([endpoint, count]) => {
-            recentDistribution[endpoint] = count / total;
-        });
+        for (const ep of endpointCounts) {
+            recentDistribution[ep.endpoint] = ep._count / totalEvents;
+        }
 
-        // Calculate cosine similarity between distributions
         const similarity = this.cosineSimilarity(baseline.topEndpoints, recentDistribution);
-        const driftScore = 1 - similarity; // 0 = identical, 1 = completely different
+        const driftScore = 1 - similarity;
 
         const component: DriftResult['components'][0] = {
             metric: 'endpoint_distribution',
             baselineValue: 1,
             currentValue: similarity,
-            zScore: driftScore * 3, // Scale to z-score-like range
+            zScore: driftScore * 3,
             severity: this.getSeverity(driftScore * 3),
         };
 
         if (driftScore > 0.5) {
-            const newEndpoints = Object.keys(recentEndpoints)
+            const newEndpoints = endpointCounts
+                .map((ep) => ep.endpoint)
                 .filter((e) => !baseline.topEndpoints[e])
                 .slice(0, 3);
 
@@ -316,7 +362,28 @@ export class DriftDetector {
         return { component };
     }
 
-    private async saveAlert(agentId: string, alert: any, component: any): Promise<void> {
+    /**
+     * Save alert only if no unacknowledged alert of the same type exists
+     * within the dedup window.
+     */
+    private async saveAlertIfNew(agentId: string, alert: any, component: any): Promise<void> {
+        const dedupSince = new Date();
+        dedupSince.setHours(dedupSince.getHours() - this.ALERT_DEDUP_HOURS);
+
+        const existing = await prisma.cognitiveAlert.findFirst({
+            where: {
+                agentId,
+                alertType: alert.type,
+                acknowledged: false,
+                createdAt: { gte: dedupSince },
+            },
+        });
+
+        if (existing) {
+            // Skip duplicate — already have an active alert for this type
+            return;
+        }
+
         await prisma.cognitiveAlert.create({
             data: {
                 agentId,
@@ -325,36 +392,63 @@ export class DriftDetector {
                 metric: component.metric,
                 baselineValue: component.baselineValue,
                 currentValue: component.currentValue,
-                driftScore: Math.abs(component.zScore) / 3, // Normalize to 0-1
+                driftScore: Math.abs(component.zScore) / 3,
                 details: { message: alert.message },
             },
         });
     }
 
-    private async updateHealthScore(
+    /**
+     * Upsert health score — one row per agent, updated in place.
+     */
+    private async upsertHealthScore(
         agentId: string,
         overallScore: number,
         components: DriftResult['components'],
         alerts: DriftResult['alerts']
     ): Promise<void> {
         const identityMetrics = components.filter((c) => ['sentiment', 'interaction_partner'].includes(c.metric));
-        const behavioralMetrics = components.filter((c) => ['request_rate', 'endpoint_distribution'].includes(c.metric));
+        const behavioralMetrics = components.filter((c) => ['request_rate', 'endpoint_distribution', 'response_time'].includes(c.metric));
 
-        const identityScore = 100 - this.mean(identityMetrics.map((c) => Math.abs(c.zScore))) * 20;
-        const behavioralScore = 100 - this.mean(behavioralMetrics.map((c) => Math.abs(c.zScore))) * 20;
-        const interactionScore =
-            100 - (components.find((c) => c.metric === 'interaction_partner')?.zScore || 0) * 20;
+        const identityScore = this.clampScore(
+            100 - this.mean(identityMetrics.map((c) => Math.abs(c.zScore))) * 20
+        );
+        const behavioralScore = this.clampScore(
+            100 - this.mean(behavioralMetrics.map((c) => Math.abs(c.zScore))) * 20
+        );
+        const interactionScore = this.clampScore(
+            100 - Math.abs(components.find((c) => c.metric === 'interaction_partner')?.zScore || 0) * 20
+        );
 
-        await prisma.agentHealthScore.create({
-            data: {
-                agentId,
-                overallScore: Math.round(overallScore),
-                identityCoherence: Math.max(0, Math.min(100, Math.round(identityScore))),
-                behavioralStability: Math.max(0, Math.min(100, Math.round(behavioralScore))),
-                interactionHealth: Math.max(0, Math.min(100, Math.round(interactionScore))),
-                activeFlags: alerts.map((a) => a.type),
-            },
+        const data = {
+            overallScore: Math.round(this.clampScore(overallScore)),
+            identityCoherence: Math.round(identityScore),
+            behavioralStability: Math.round(behavioralScore),
+            interactionHealth: Math.round(interactionScore),
+            activeFlags: alerts.map((a) => a.type),
+            computedAt: new Date(),
+        };
+
+        // Try to find existing health score for this agent
+        const existing = await prisma.agentHealthScore.findFirst({
+            where: { agentId },
+            orderBy: { computedAt: 'desc' },
         });
+
+        if (existing) {
+            await prisma.agentHealthScore.update({
+                where: { id: existing.id },
+                data,
+            });
+        } else {
+            await prisma.agentHealthScore.create({
+                data: { agentId, ...data },
+            });
+        }
+    }
+
+    private clampScore(value: number): number {
+        return Math.max(0, Math.min(100, value));
     }
 
     private zScore(value: number, mean: number, stddev: number): number {

@@ -2,11 +2,11 @@
 .DS_Store
 Thumbs.db
 .claude
-DOC
 *.pid
 *.out
 *.err
 .bastion-agent.json
+Doc/
 
 # Environment Variables
 .env
@@ -31,14 +31,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Rust (CLI / Sidecar)
+# Rust (CLI / bastion-core / Tauri)
 target/
 **/*.rs.bk
 
 # Foundry (Smart Contracts)
 cache/
 broadcast/
-out/
 via_ir/
 
 # Vercel
@@ -60,3 +59,11 @@ temp/
 
 # Tests
 backend/scripts/
+mock_bastion/
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Tauri (Desktop)
+desktop/src-tauri/gen/

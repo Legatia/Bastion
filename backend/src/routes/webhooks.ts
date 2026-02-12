@@ -1,225 +1,242 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { CouponManager } from '../services/coupon-manager';
+import { SubscriptionTier } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { StripeService } from '../services/stripe-service';
+import { QuotaService } from '../services/quota-service';
 import { logger } from '../middleware/logger';
-import crypto from 'crypto';
+import Stripe from 'stripe';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
- * Verify webhook signature using HMAC-SHA256
+ * POST /v1/webhooks/stripe
+ * Handle Stripe webhook events for tier-based billing
  */
-function verifyWebhookSignature(payload: string, signature: string): boolean {
-    const secret = process.env.POLAR_WEBHOOK_SECRET;
-
-    if (!secret) {
-        logger.error('[SECURITY] POLAR_WEBHOOK_SECRET not configured!');
-        return false;
-    }
-
-    const expectedSignature = crypto
-        .createHmac('sha256', secret)
-        .update(payload)
-        .digest('hex');
+router.post('/webhooks/stripe', async (req: Request, res: Response) => {
+    let event: Stripe.Event;
 
     try {
-        return crypto.timingSafeEqual(
-            Buffer.from(signature),
-            Buffer.from(expectedSignature)
-        );
-    } catch {
-        return false;
+        const signature = req.headers['stripe-signature'] as string;
+        event = StripeService.constructEvent(req.body, signature);
+    } catch (err: any) {
+        logger.warn('[STRIPE] Webhook signature verification failed:', { error: err.message });
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Idempotency: skip already-processed events
+    const existing = await prisma.webhookEvent.findUnique({ where: { eventId: event.id } });
+    if (existing) {
+        logger.info('[STRIPE] Duplicate webhook event skipped', { eventId: event.id, type: event.type });
+        return res.json({ received: true, duplicate: true });
+    }
+
+    try {
+        switch (event.type) {
+            case 'checkout.session.completed': {
+                const session = event.data.object as Stripe.Checkout.Session;
+                await handleCheckoutCompleted(session);
+                break;
+            }
+            case 'invoice.paid': {
+                const invoice = event.data.object as Stripe.Invoice;
+                logger.info('[STRIPE] Invoice paid', { invoiceId: invoice.id });
+                break;
+            }
+            case 'customer.subscription.updated': {
+                const subscription = event.data.object as Stripe.Subscription;
+                await handleSubscriptionUpdated(subscription);
+                break;
+            }
+            case 'customer.subscription.deleted': {
+                const subscription = event.data.object as Stripe.Subscription;
+                await handleSubscriptionDeleted(subscription);
+                break;
+            }
+            default:
+                break;
+        }
+
+        // Record processed event for idempotency
+        await prisma.webhookEvent.create({
+            data: { eventId: event.id, type: event.type },
+        });
+
+        res.json({ received: true });
+    } catch (error: any) {
+        logger.error('[STRIPE] Webhook processing failed:', { error: error.message, eventType: event.type });
+        res.status(500).json({ error: 'Webhook processing failed' });
+    }
+});
+
+/**
+ * Resolve tier from a Stripe subscription's price ID
+ */
+function resolveTierFromPriceId(priceId: string): SubscriptionTier | null {
+    if (priceId === process.env.STRIPE_PRICE_ID_STARTER) return 'STARTER';
+    if (priceId === process.env.STRIPE_PRICE_ID_PRO) return 'PRO';
+    return null;
+}
+
+/**
+ * Resolve tier from a Stripe subscription object by scanning its items
+ */
+function resolveTierFromSubscription(subscription: Stripe.Subscription): SubscriptionTier | null {
+    for (const item of subscription.items.data) {
+        const priceId = typeof item.price === 'string' ? item.price : item.price.id;
+        const tier = resolveTierFromPriceId(priceId);
+        if (tier) return tier;
+    }
+    return null;
+}
+
+/**
+ * Handle successful checkout.
+ * Sets user.tier from session metadata and handles OpenClaw one-time purchases.
+ */
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+    const userId = session.client_reference_id;
+    if (!userId) {
+        logger.warn('[STRIPE] Checkout completed but no userId found in client_reference_id');
+        return;
+    }
+
+    logger.info('[STRIPE] Processing checkout completion', { userId, sessionId: session.id });
+
+    // Set tier from metadata
+    const targetTier = session.metadata?.targetTier as SubscriptionTier | undefined;
+    const updateData: any = {};
+
+    if (targetTier && ['STARTER', 'PRO', 'ENTERPRISE'].includes(targetTier)) {
+        updateData.tier = targetTier;
+    }
+
+    // Link subscription ID
+    if (session.subscription) {
+        const subscriptionId = typeof session.subscription === 'string'
+            ? session.subscription
+            : session.subscription.id;
+        updateData.stripeSubscriptionId = subscriptionId;
+    }
+
+    // Ensure stripeCustomerId is stored
+    if (session.customer) {
+        const customerId = typeof session.customer === 'string' ? session.customer : session.customer.id;
+        updateData.stripeCustomerId = customerId;
+    }
+
+    // Check for OpenClaw via metadata on the checkout session
+    if (session.metadata?.includeOpenclaw === 'true') {
+        updateData.openclawPurchased = true;
+        logger.info('[STRIPE] OpenClaw activated via metadata', { userId });
+    }
+
+    // Fallback: check line items for OpenClaw price ID
+    if (!updateData.openclawPurchased && process.env.STRIPE_PRICE_ID_OPENCLAW) {
+        try {
+            const stripe = StripeService.getClient();
+            const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
+                expand: ['data.price'],
+            });
+
+            for (const item of lineItems.data) {
+                const itemPriceId = (item.price as Stripe.Price)?.id;
+                if (itemPriceId === process.env.STRIPE_PRICE_ID_OPENCLAW) {
+                    updateData.openclawPurchased = true;
+                    logger.info('[STRIPE] OpenClaw activated via price ID match', { userId });
+                }
+            }
+        } catch (err: any) {
+            logger.warn('[STRIPE] Could not check line items for OpenClaw:', { error: err.message });
+        }
+    }
+
+    // Apply all updates
+    if (Object.keys(updateData).length > 0) {
+        await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+        });
+    }
+
+    QuotaService.invalidateFeatureCache(userId);
+    logger.info('[STRIPE] Checkout processed', { userId, tier: targetTier, hasSubscription: !!session.subscription });
+}
+
+/**
+ * Handle subscription updates.
+ * Always resolve the current tier from the subscription's price IDs.
+ * If no longer active → downgrade to FREE.
+ */
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const customerId = subscription.customer as string;
+    const user = await prisma.user.findUnique({ where: { stripeCustomerId: customerId } });
+
+    if (!user) {
+        logger.warn('[STRIPE] Subscription updated for unknown customer', { customerId });
+        return;
+    }
+
+    const isActive = subscription.status === 'active' || subscription.status === 'trialing';
+
+    if (!isActive) {
+        // Downgrade to FREE
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { tier: 'FREE', stripeSubscriptionId: null },
+        });
+        QuotaService.invalidateFeatureCache(user.id);
+        logger.info('[STRIPE] Subscription no longer active, downgraded to FREE', {
+            userId: user.id,
+            subscriptionId: subscription.id,
+            status: subscription.status,
+        });
+        return;
+    }
+
+    // Active subscription — always resolve tier from price IDs to catch
+    // upgrades (STARTER→PRO) and downgrades (PRO→STARTER) via Stripe portal
+    const resolvedTier = resolveTierFromSubscription(subscription);
+
+    if (resolvedTier && resolvedTier !== user.tier) {
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { tier: resolvedTier, stripeSubscriptionId: subscription.id },
+        });
+        QuotaService.invalidateFeatureCache(user.id);
+        logger.info('[STRIPE] Subscription tier changed', {
+            userId: user.id,
+            previousTier: user.tier,
+            newTier: resolvedTier,
+            status: subscription.status,
+        });
+    } else {
+        logger.info('[STRIPE] Subscription synced, tier unchanged', {
+            userId: user.id,
+            tier: user.tier,
+            status: subscription.status,
+        });
     }
 }
 
 /**
- * POST /v1/webhooks/polar
- * Handle subscription events from Polar.sh
- *
- * Security:
- * - Signature verification (HMAC-SHA256)
- * - Idempotency (prevent duplicate processing)
- * - Timestamp validation (reject old events)
+ * Handle subscription cancellation — downgrade to FREE
  */
-router.post('/webhooks/polar', async (req: Request, res: Response) => {
-    try {
-        // 1. Verify webhook signature
-        const signature = req.headers['polar-webhook-signature'] as string;
-        const payload = JSON.stringify(req.body);
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const customerId = subscription.customer as string;
+    const user = await prisma.user.findUnique({ where: { stripeCustomerId: customerId } });
 
-        if (!signature) {
-            logger.warn('[SECURITY] Webhook received without signature');
-            return res.status(401).json({ error: 'Missing webhook signature' });
-        }
+    if (!user) return;
 
-        if (!verifyWebhookSignature(payload, signature)) {
-            logger.warn('[SECURITY] Invalid webhook signature');
-            return res.status(401).json({ error: 'Invalid webhook signature' });
-        }
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { tier: 'FREE', stripeSubscriptionId: null },
+    });
 
-        const event = req.body;
-
-        // 2. Validate event structure
-        if (!event.id || !event.type) {
-            logger.warn('[WEBHOOK] Malformed event - missing id or type');
-            return res.status(400).json({ error: 'Invalid event format' });
-        }
-
-        // 3. Check idempotency (prevent duplicate processing)
-        const existingEvent = await prisma.webhookEvent.findUnique({
-            where: { eventId: event.id }
-        });
-
-        if (existingEvent) {
-            logger.info('[WEBHOOK] Duplicate event ignored', { eventId: event.id });
-            return res.json({ received: true, duplicate: true });
-        }
-
-        // 4. Validate timestamp (reject events older than 5 minutes)
-        if (event.timestamp) {
-            const eventTime = new Date(event.timestamp).getTime();
-            const now = Date.now();
-            const ageMs = now - eventTime;
-
-            if (ageMs > 5 * 60 * 1000) {
-                logger.warn('[WEBHOOK] Event too old', { eventId: event.id, ageMs });
-                return res.status(400).json({ error: 'Event expired' });
-            }
-        }
-
-        // 5. Record event for idempotency
-        await prisma.webhookEvent.create({
-            data: {
-                eventId: event.id,
-                type: event.type
-            }
-        });
-
-        logger.info('[WEBHOOK] Processing event', { eventId: event.id, type: event.type });
-
-        // 6. Process event based on type
-        if (event.type === 'subscription.created') {
-            const { user_email, tier_name } = event.data || {};
-
-            if (!user_email || !tier_name) {
-                logger.warn('[WEBHOOK] Missing user_email or tier_name');
-                return res.status(400).json({ error: 'Missing required fields' });
-            }
-
-            // Validate tier name
-            const validTiers = ['STARTER', 'GROWTH', 'PRO', 'ENTERPRISE'];
-            const normalizedTier = tier_name.toUpperCase();
-
-            if (!validTiers.includes(normalizedTier)) {
-                logger.warn('[WEBHOOK] Invalid tier', { tier_name });
-                return res.status(400).json({ error: 'Invalid tier' });
-            }
-
-            logger.info('[WEBHOOK] New subscription', { user_email, tier: normalizedTier });
-
-            const user = await prisma.user.update({
-                where: { email: user_email },
-                data: { tier: normalizedTier as any }
-            });
-
-            // Award coupon to referrer (if user was referred)
-            const referral = await prisma.referral.findUnique({
-                where: { referredId: user.id }
-            });
-
-            if (referral && referral.status === 'PENDING') {
-                // Mark referral as active
-                await prisma.referral.update({
-                    where: { id: referral.id },
-                    data: {
-                        status: 'ACTIVE',
-                        firstPaymentAt: new Date()
-                    }
-                });
-
-                // Award coupon to referrer
-                await CouponManager.awardCoupon(referral.referrerId, referral.id);
-
-                logger.info('[WEBHOOK] Coupon awarded to referrer', { user_email });
-            }
-        }
-
-        // Handle subscription update (tier change)
-        if (event.type === 'subscription.updated') {
-            const { user_email, tier_name } = event.data || {};
-
-            if (!user_email || !tier_name) {
-                logger.warn('[WEBHOOK] Missing user_email or tier_name');
-                return res.status(400).json({ error: 'Missing required fields' });
-            }
-
-            const validTiers = ['STARTER', 'GROWTH', 'PRO', 'ENTERPRISE'];
-            const normalizedTier = tier_name.toUpperCase();
-
-            if (!validTiers.includes(normalizedTier)) {
-                logger.warn('[WEBHOOK] Invalid tier', { tier_name });
-                return res.status(400).json({ error: 'Invalid tier' });
-            }
-
-            logger.info('[WEBHOOK] Updating subscription', { user_email, tier: normalizedTier });
-
-            await prisma.user.update({
-                where: { email: user_email },
-                data: { tier: normalizedTier as any }
-            });
-        }
-
-        // Handle subscription cancellation
-        if (event.type === 'subscription.canceled' || event.type === 'subscription.cancelled') {
-            const { user_email } = event.data || {};
-
-            if (!user_email) {
-                logger.warn('[WEBHOOK] Missing user_email');
-                return res.status(400).json({ error: 'Missing user_email' });
-            }
-
-            logger.info('[WEBHOOK] Subscription cancelled', { user_email });
-
-            const user = await prisma.user.findUnique({
-                where: { email: user_email }
-            });
-
-            if (user) {
-                // Revoke coupon from referrer
-                const referral = await prisma.referral.findUnique({
-                    where: { referredId: user.id }
-                });
-
-                if (referral && referral.status === 'ACTIVE') {
-                    // Mark as churned
-                    await prisma.referral.update({
-                        where: { id: referral.id },
-                        data: {
-                            status: 'CHURNED',
-                            cancelledAt: new Date()
-                        }
-                    });
-
-                    // Remove one unused coupon from referrer
-                    await CouponManager.revokeCoupon(referral.referrerId, referral.id);
-
-                    logger.info('[WEBHOOK] Coupon revoked from referrer', { user_email });
-                }
-            }
-        }
-
-        res.json({ received: true });
-    } catch (error: any) {
-        logger.error('[WEBHOOK] Processing error:', { error: error.message });
-
-        // Don't expose internal errors to webhook sender
-        res.status(500).json({
-            error: 'Webhook processing failed',
-            // Only include event ID for tracking
-            event_id: req.body?.id
-        });
-    }
-});
+    QuotaService.invalidateFeatureCache(user.id);
+    logger.info('[STRIPE] Subscription deleted - downgraded to FREE', {
+        userId: user.id,
+        subscriptionId: subscription.id,
+    });
+}
 
 export default router;

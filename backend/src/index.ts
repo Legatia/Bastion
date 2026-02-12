@@ -4,8 +4,6 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
-
 // Load environment variables
 dotenv.config();
 
@@ -32,17 +30,18 @@ import authRoutes from './routes/auth';
 import webhookRoutes from './routes/webhooks';
 import referralRoutes from './routes/referrals';
 import usageRoutes from './routes/usage';
-import polarDiscountRoutes from './routes/polar-discounts';
 import identityRoutes from './routes/identity';
 import cognitiveRoutes from './routes/cognitive';
+import moduleRoutes from './routes/modules';
+import { startMoltMindScheduler, stopMoltMindScheduler } from './services/moltmind-scheduler';
 
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
 const API_VERSION = process.env.API_VERSION || 'v1';
 
-// Initialize Prisma
-const prisma = new PrismaClient();
+// Shared Prisma client
+import { prisma } from './lib/prisma';
 
 // CORS Configuration - Whitelist specific origins
 const ALLOWED_ORIGINS = [
@@ -93,12 +92,18 @@ app.use(cors({
   maxAge: 86400, // 24 hours
 }));
 
+// Stripe webhook requires raw body for signature verification
+app.use(`/${API_VERSION}/webhooks/stripe`, express.raw({ type: 'application/json' }));
+
 app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger); // Log all requests
 
-// Apply general rate limit to all API routes
-app.use(`/${API_VERSION}`, apiLimiter);
+// Apply general rate limit to all API routes EXCEPT /authorize and /webhooks (have their own limiters)
+app.use(`/${API_VERSION}`, (req, res, next) => {
+  if (req.path === '/authorize' || req.path.startsWith('/webhooks')) return next();
+  apiLimiter(req, res, next);
+});
 
 // Root endpoint - Serve landing page
 // Static files will be served from /public/index.html
@@ -129,9 +134,9 @@ app.use(`/${API_VERSION}`, authRoutes);
 app.use(`/${API_VERSION}`, webhookRoutes);
 app.use(`/${API_VERSION}`, referralRoutes);
 app.use(`/${API_VERSION}`, usageRoutes);
-app.use(`/${API_VERSION}`, polarDiscountRoutes);
 app.use(`/${API_VERSION}`, identityRoutes);
-app.use(cognitiveRoutes); // MoltMind - cognitive monitoring
+app.use(`/${API_VERSION}`, cognitiveRoutes); // MoltMind - cognitive monitoring
+app.use(`/${API_VERSION}`, moduleRoutes);
 
 // CLI-friendly endpoint aliases
 // /v1/audit -> /v1/logs
@@ -203,6 +208,9 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 async function shutdown() {
   logger.info('Shutting down gracefully...');
 
+  // Stop background schedulers
+  stopMoltMindScheduler();
+
   // Close database connections
   await prisma.$disconnect();
 
@@ -219,6 +227,9 @@ async function startServer() {
     // Test database connection
     await prisma.$connect();
     logger.info('✓ Database connected');
+
+    // Start MoltMind background scheduler
+    startMoltMindScheduler();
 
     // Start listening
     app.listen(PORT, () => {

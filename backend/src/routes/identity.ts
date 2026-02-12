@@ -2,24 +2,38 @@
 // Endpoints for on-chain agent verification
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authenticateApiKey } from '../middleware/auth';
+import { QuotaService } from '../services/quota-service';
 import {
     buildRegistrationFile,
+    buildReputationAttestation,
+    verifyRegistrationTx,
     prepareRegistrationTx,
     recordRegistration,
     getAgentURI,
     IDENTITY_REGISTRIES,
 } from '../services/erc8004';
+import { CdpWalletService } from '../services/cdp-wallet-service';
+import rateLimit from 'express-rate-limit';
+import { createPublicClient, http, type Hex } from 'viem';
+import { baseSepolia, base } from 'viem/chains';
 
 const router = Router();
-const prisma = new PrismaClient();
+
+// Rate limit for the public profile.json endpoint (P2-7)
+const profileLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 requests per minute per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 /**
  * GET /v1/agents/:id/profile.json
  * Public endpoint serving the ERC-8004 registration file
  */
-router.get('/agents/:id/profile.json', async (req: Request, res: Response) => {
+router.get('/agents/:id/profile.json', profileLimiter, async (req: Request, res: Response) => {
     try {
         const agent = await prisma.agent.findUnique({
             where: { id: req.params.id as string },
@@ -30,14 +44,20 @@ router.get('/agents/:id/profile.json', async (req: Request, res: Response) => {
         }
 
         const baseUrl = process.env.BACKEND_URL || 'https://bastion-gamma.vercel.app';
+
+        // Build live reputation attestation
+        const reputation = await buildReputationAttestation(agent, agent.userId);
+
         const registrationFile = buildRegistrationFile(agent, {
             baseUrl,
             chain: agent.registryChain || 'base-sepolia',
             agentId: agent.onchainId ? parseInt(agent.onchainId) : undefined,
+            reputation,
         });
 
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*'); // Public endpoint
+        res.setHeader('Cache-Control', 'public, max-age=60'); // Cache for 1 minute
         res.json(registrationFile);
     } catch (error) {
         console.error('Error fetching agent profile:', error);
@@ -78,8 +98,12 @@ router.get('/agents/:id/identity', authenticateApiKey, async (req: Request, res:
                     registryAddress: agent.registryAddress,
                     agentURI: agent.agentURI,
                     ownerAddress: agent.ownerAddress,
+                    registrationTxHash: agent.registrationTxHash,
                     registeredAt: agent.registeredAt,
                 }
+                : null,
+            wallet: agent.cdpWalletAddress
+                ? { address: agent.cdpWalletAddress }
                 : null,
             profileUrl: getAgentURI(agent.id, baseUrl),
         });
@@ -99,7 +123,18 @@ router.post('/agents/:id/verify', authenticateApiKey, async (req: Request, res: 
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
+        const agentId = req.params.id as string;
         const { chain = 'base-sepolia' } = req.body;
+
+        // Check ERC-8004 tier access (STARTER+)
+        const access = await QuotaService.checkFeatureAccess(req.user.id, 'ERC8004_DAILY');
+        if (!access.allowed) {
+            return res.status(403).json({
+                allowed: false,
+                error: 'UPGRADE_REQUIRED',
+                reason: access.message,
+            });
+        }
 
         if (!IDENTITY_REGISTRIES[chain]) {
             return res.status(400).json({
@@ -109,10 +144,7 @@ router.post('/agents/:id/verify', authenticateApiKey, async (req: Request, res: 
         }
 
         const agent = await prisma.agent.findFirst({
-            where: {
-                id: req.params.id as string,
-                userId: req.user.id,
-            },
+            where: { id: agentId, userId: req.user.id },
         });
 
         if (!agent) {
@@ -148,7 +180,8 @@ router.post('/agents/:id/verify', authenticateApiKey, async (req: Request, res: 
 
 /**
  * POST /v1/agents/:id/verify/confirm
- * Confirm successful on-chain registration
+ * Confirm on-chain registration by providing the txHash.
+ * The backend verifies the tx on-chain — no client-supplied onchainId/ownerAddress trusted.
  */
 router.post('/agents/:id/verify/confirm', authenticateApiKey, async (req: Request, res: Response) => {
     try {
@@ -156,13 +189,204 @@ router.post('/agents/:id/verify/confirm', authenticateApiKey, async (req: Reques
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const { onchainId, registryChain, ownerAddress, txHash } = req.body;
+        const agentId = req.params.id as string;
+        const { txHash, registryChain = 'base-sepolia' } = req.body;
 
-        if (!onchainId || !registryChain || !ownerAddress || !txHash) {
+        if (!txHash) {
             return res.status(400).json({
-                error: 'Missing required fields',
-                required: ['onchainId', 'registryChain', 'ownerAddress', 'txHash'],
+                error: 'Missing required field: txHash',
             });
+        }
+
+        if (!IDENTITY_REGISTRIES[registryChain]) {
+            return res.status(400).json({
+                error: 'Invalid registryChain',
+                message: `Supported chains: ${Object.keys(IDENTITY_REGISTRIES).join(', ')}`,
+            });
+        }
+
+        // Check ERC-8004 tier access (STARTER+)
+        const access = await QuotaService.checkFeatureAccess(req.user.id, 'ERC8004_DAILY');
+        if (!access.allowed) {
+            return res.status(403).json({
+                allowed: false,
+                error: 'UPGRADE_REQUIRED',
+                reason: access.message,
+            });
+        }
+
+        const agent = await prisma.agent.findFirst({
+            where: { id: agentId, userId: req.user.id },
+        });
+
+        if (!agent) {
+            return res.status(404).json({ error: 'Agent not found' });
+        }
+
+        if (agent.onchainId) {
+            return res.status(400).json({
+                error: 'Already verified',
+                message: 'This agent is already verified on-chain',
+            });
+        }
+
+        // P0-2: Verify the transaction on-chain instead of trusting the client
+        const baseUrl = process.env.BACKEND_URL || 'https://bastion-gamma.vercel.app';
+        const expectedAgentURI = getAgentURI(agent.id, baseUrl);
+
+        let verified;
+        try {
+            verified = await verifyRegistrationTx(
+                txHash as Hex,
+                registryChain,
+                expectedAgentURI
+            );
+        } catch (verifyError: any) {
+            return res.status(400).json({
+                error: 'On-chain verification failed',
+                message: verifyError.message,
+            });
+        }
+
+        // All checks passed — record with data extracted from the chain
+        const updatedAgent = await recordRegistration(agent.id, {
+            onchainId: verified.agentId,
+            registryChain,
+            ownerAddress: verified.ownerAddress,
+            txHash,
+        });
+
+        res.json({
+            message: 'Agent verified on-chain!',
+            agent: {
+                id: updatedAgent.id,
+                name: updatedAgent.name,
+                verified: true,
+                onchainId: updatedAgent.onchainId,
+                registryChain: updatedAgent.registryChain,
+                ownerAddress: updatedAgent.ownerAddress,
+            },
+        });
+    } catch (error) {
+        console.error('Error confirming verification:', error);
+        res.status(500).json({ error: 'Failed to confirm verification' });
+    }
+});
+
+/**
+ * POST /v1/agents/:id/register
+ * Server-side ERC-8004 registration using the agent's CDP wallet.
+ * No user wallet needed — CDP signs and broadcasts the tx.
+ */
+router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res: Response) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const agentId = req.params.id as string;
+        const { chain = 'base-sepolia' } = req.body;
+
+        // Check ERC-8004 tier access (STARTER+)
+        const access = await QuotaService.checkFeatureAccess(req.user.id, 'ERC8004_DAILY');
+        if (!access.allowed) {
+            return res.status(403).json({
+                allowed: false,
+                error: 'UPGRADE_REQUIRED',
+                reason: access.message,
+            });
+        }
+
+        if (!IDENTITY_REGISTRIES[chain]) {
+            return res.status(400).json({
+                error: 'Invalid chain',
+                message: `Supported chains: ${Object.keys(IDENTITY_REGISTRIES).join(', ')}`,
+            });
+        }
+
+        const agent = await prisma.agent.findFirst({
+            where: { id: agentId, userId: req.user.id },
+        });
+
+        if (!agent) {
+            return res.status(404).json({ error: 'Agent not found' });
+        }
+
+        if (agent.onchainId) {
+            return res.status(400).json({
+                error: 'Already registered',
+                message: 'This agent is already registered on-chain',
+                identity: {
+                    onchainId: agent.onchainId,
+                    registryChain: agent.registryChain,
+                },
+            });
+        }
+
+        // Ensure CDP wallet exists
+        const walletAddress = await CdpWalletService.ensureWallet(agentId);
+
+        // Prepare registration calldata
+        const baseUrl = process.env.BACKEND_URL || 'https://bastion-gamma.vercel.app';
+        const agentURI = getAgentURI(agent.id, baseUrl);
+        const tx = prepareRegistrationTx(agentURI, chain);
+
+        // Send via CDP wallet
+        const { transactionHash } = await CdpWalletService.sendTransaction({
+            agentId,
+            to: tx.to,
+            data: tx.data,
+            value: 0n,
+            network: chain,
+        });
+
+        // Wait for mining
+        const registry = IDENTITY_REGISTRIES[chain];
+        const viemChain = chain === 'base-sepolia' ? baseSepolia : base;
+        const publicClient = createPublicClient({
+            chain: viemChain,
+            transport: http(registry.rpcUrl),
+        });
+
+        await publicClient.waitForTransactionReceipt({ hash: transactionHash });
+
+        // Verify on-chain
+        const verified = await verifyRegistrationTx(transactionHash, chain, agentURI);
+
+        // Record in DB
+        const updatedAgent = await recordRegistration(agent.id, {
+            onchainId: verified.agentId,
+            registryChain: chain,
+            ownerAddress: verified.ownerAddress,
+            txHash: transactionHash,
+        });
+
+        res.json({
+            message: 'Agent registered on-chain via CDP wallet!',
+            agent: {
+                id: updatedAgent.id,
+                name: updatedAgent.name,
+                verified: true,
+                onchainId: updatedAgent.onchainId,
+                registryChain: updatedAgent.registryChain,
+                ownerAddress: updatedAgent.ownerAddress,
+                walletAddress,
+            },
+        });
+    } catch (error: any) {
+        console.error('Error in server-side registration:', error);
+        res.status(500).json({ error: 'Registration failed', message: error.message });
+    }
+});
+
+/**
+ * GET /v1/agents/:id/wallet
+ * Get agent's CDP wallet address, balances, and explorer link.
+ */
+router.get('/agents/:id/wallet', authenticateApiKey, async (req: Request, res: Response) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
         }
 
         const agent = await prisma.agent.findFirst({
@@ -176,27 +400,100 @@ router.post('/agents/:id/verify/confirm', authenticateApiKey, async (req: Reques
             return res.status(404).json({ error: 'Agent not found' });
         }
 
-        const updatedAgent = await recordRegistration(agent.id, {
-            onchainId,
-            registryChain,
-            ownerAddress,
-            txHash,
-        });
+        // Check CDP_WALLET tier access (STARTER+)
+        const walletAccess = await QuotaService.checkFeatureAccess(req.user.id, 'CDP_WALLET');
+        if (!walletAccess.allowed) {
+            return res.status(403).json({
+                allowed: false,
+                error: 'UPGRADE_REQUIRED',
+                reason: walletAccess.message,
+            });
+        }
+
+        if (!agent.cdpWalletAddress) {
+            return res.status(404).json({
+                error: 'No wallet',
+                message: 'This agent does not have a CDP wallet yet.',
+            });
+        }
+
+        const network = (req.query.network as string) || 'base-sepolia';
+
+        let balances;
+        try {
+            balances = await CdpWalletService.getBalances(agent.id, network);
+        } catch {
+            balances = [];
+        }
+
+        const explorerBase = network === 'base'
+            ? 'https://basescan.org'
+            : 'https://sepolia.basescan.org';
 
         res.json({
-            message: 'Agent verified successfully!',
-            agent: {
-                id: updatedAgent.id,
-                name: updatedAgent.name,
-                verified: true,
-                onchainId: updatedAgent.onchainId,
-                registryChain: updatedAgent.registryChain,
-                ownerAddress: updatedAgent.ownerAddress,
-            },
+            address: agent.cdpWalletAddress,
+            network,
+            explorerUrl: `${explorerBase}/address/${agent.cdpWalletAddress}`,
+            balances,
         });
     } catch (error) {
-        console.error('Error confirming verification:', error);
-        res.status(500).json({ error: 'Failed to confirm verification' });
+        console.error('Error fetching wallet:', error);
+        res.status(500).json({ error: 'Failed to fetch wallet info' });
+    }
+});
+
+/**
+ * POST /v1/agents/:id/wallet/faucet
+ * Request testnet tokens for the agent's CDP wallet.
+ */
+router.post('/agents/:id/wallet/faucet', authenticateApiKey, async (req: Request, res: Response) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const agent = await prisma.agent.findFirst({
+            where: {
+                id: req.params.id as string,
+                userId: req.user.id,
+            },
+        });
+
+        if (!agent) {
+            return res.status(404).json({ error: 'Agent not found' });
+        }
+
+        // Check CDP_WALLET tier access (STARTER+)
+        const walletAccess = await QuotaService.checkFeatureAccess(req.user.id, 'CDP_WALLET');
+        if (!walletAccess.allowed) {
+            return res.status(403).json({
+                allowed: false,
+                error: 'UPGRADE_REQUIRED',
+                reason: walletAccess.message,
+            });
+        }
+
+        const { network = 'base-sepolia', token = 'eth' } = req.body;
+
+        if (!network.includes('sepolia')) {
+            return res.status(400).json({
+                error: 'Faucet only available on sepolia networks',
+            });
+        }
+
+        // Ensure wallet exists
+        await CdpWalletService.ensureWallet(agent.id);
+
+        const result = await CdpWalletService.requestFaucet(agent.id, network, token);
+
+        res.json({
+            message: `Faucet ${token} requested on ${network}`,
+            transactionHash: result.transactionHash,
+            explorerUrl: `https://sepolia.basescan.org/tx/${result.transactionHash}`,
+        });
+    } catch (error: any) {
+        console.error('Error requesting faucet:', error);
+        res.status(500).json({ error: 'Faucet request failed', message: error.message });
     }
 });
 

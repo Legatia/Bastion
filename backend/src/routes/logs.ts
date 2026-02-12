@@ -1,12 +1,11 @@
 // Action Logs Endpoints
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authenticateApiKey } from '../middleware/auth';
 import { EncryptionService } from '../services/encryption-service';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * GET /v1/logs

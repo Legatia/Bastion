@@ -1,15 +1,16 @@
 /**
  * MoltMind Baseline Engine
  * Calculates "normal" behavior patterns for each agent
+ * Uses DB-level aggregation to avoid loading all events into memory.
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export interface BaselineMetrics {
     requestRate: { mean: number; stddev: number };
     responseLength: { mean: number; stddev: number };
+    responseTime: { mean: number; stddev: number };
     sentimentMean: number;
     sentimentStddev: number;
     topEndpoints: Record<string, number>; // endpoint -> frequency ratio
@@ -19,35 +20,108 @@ export interface BaselineMetrics {
 
 export class BaselineEngine {
     /**
-     * Calculate baseline for an agent over a time window
-     * Default: 7 days of data
+     * Calculate baseline for an agent over a time window.
+     * Uses DB aggregation queries instead of loading all events into memory.
      */
     async calculateBaseline(agentId: string, windowDays: number = 7): Promise<BaselineMetrics | null> {
         const windowStart = new Date();
         windowStart.setDate(windowStart.getDate() - windowDays);
 
-        const events = await prisma.behavioralEvent.findMany({
-            where: {
-                agentId,
-                timestamp: { gte: windowStart },
-            },
-            orderBy: { timestamp: 'asc' },
+        // Check count first
+        const totalCount = await prisma.behavioralEvent.count({
+            where: { agentId, timestamp: { gte: windowStart } },
         });
 
-        if (events.length < 50) {
-            console.log(`[MoltMind] Insufficient data for baseline (${events.length} events, need 50+)`);
+        if (totalCount < 50) {
+            console.log(`[MoltMind] Insufficient data for baseline (${totalCount} events, need 50+)`);
             return null;
         }
 
-        // Calculate metrics
+        // Run aggregation queries in parallel
+        const [
+            aggregates,
+            endpointCounts,
+            hourCounts,
+            partnerCounts,
+            hourlyCounts,
+        ] = await Promise.all([
+            // Aggregate sentiment, content length, response time
+            prisma.behavioralEvent.aggregate({
+                where: { agentId, timestamp: { gte: windowStart } },
+                _avg: { sentimentScore: true, contentLength: true, responseTimeMs: true },
+                _count: true,
+            }),
+            // Top endpoints with counts
+            prisma.behavioralEvent.groupBy({
+                by: ['endpoint'],
+                where: { agentId, timestamp: { gte: windowStart } },
+                _count: true,
+                orderBy: { _count: { endpoint: 'desc' } },
+                take: 10,
+            }),
+            // Hour-of-day distribution
+            this.getHourDistribution(agentId, windowStart),
+            // Top interaction partners
+            prisma.behavioralEvent.groupBy({
+                by: ['targetAgentId'],
+                where: {
+                    agentId,
+                    timestamp: { gte: windowStart },
+                    targetAgentId: { not: null },
+                },
+                _count: true,
+                orderBy: { _count: { targetAgentId: 'desc' } },
+                take: 10,
+            }),
+            // Hourly request counts for rate stats
+            this.getHourlyRequestCounts(agentId, windowStart),
+        ]);
+
+        // Compute stddev for sentiment and lengths via a second pass
+        // (Prisma doesn't support stddev natively, use raw query)
+        const stddevs = await this.computeStddevs(agentId, windowStart);
+
+        // Build endpoint distribution
+        const topEndpoints: Record<string, number> = {};
+        for (const ep of endpointCounts) {
+            topEndpoints[ep.endpoint] = ep._count / totalCount;
+        }
+
+        // Build interaction partners
+        const topInteractionPartners: Record<string, number> = {};
+        for (const p of partnerCounts) {
+            if (p.targetAgentId) {
+                topInteractionPartners[p.targetAgentId] = p._count;
+            }
+        }
+
+        // Active hours (hours with >5% of total traffic)
+        const threshold = totalCount * 0.05;
+        const activeHours = hourCounts
+            .filter((h) => h.count > threshold)
+            .map((h) => h.hour)
+            .sort((a, b) => a - b);
+
+        // Rate stats from hourly buckets
+        const rates = hourlyCounts.map((h) => h.count);
+        const rateMean = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+        const rateStddev = this.computeArrayStddev(rates);
+
         const metrics: BaselineMetrics = {
-            requestRate: this.calculateRateStats(events),
-            responseLength: this.calculateLengthStats(events),
-            sentimentMean: this.mean(events.map((e) => e.sentimentScore).filter(Boolean) as number[]),
-            sentimentStddev: this.stddev(events.map((e) => e.sentimentScore).filter(Boolean) as number[]),
-            topEndpoints: this.calculateEndpointDistribution(events),
-            activeHours: this.calculateActiveHours(events),
-            topInteractionPartners: this.calculateInteractionPartners(events),
+            requestRate: { mean: rateMean, stddev: rateStddev },
+            responseLength: {
+                mean: aggregates._avg.contentLength || 0,
+                stddev: stddevs.contentLengthStddev,
+            },
+            responseTime: {
+                mean: aggregates._avg.responseTimeMs || 0,
+                stddev: stddevs.responseTimeMsStddev,
+            },
+            sentimentMean: aggregates._avg.sentimentScore || 0,
+            sentimentStddev: stddevs.sentimentStddev,
+            topEndpoints,
+            activeHours,
+            topInteractionPartners,
         };
 
         // Deactivate old baselines
@@ -62,13 +136,13 @@ export class BaselineEngine {
                 agentId,
                 windowStart,
                 windowEnd: new Date(),
-                eventCount: events.length,
+                eventCount: totalCount,
                 metrics: metrics as any,
                 isActive: true,
             },
         });
 
-        console.log(`[MoltMind] Baseline calculated for agent ${agentId}: ${events.length} events`);
+        console.log(`[MoltMind] Baseline calculated for agent ${agentId}: ${totalCount} events`);
         return metrics;
     }
 
@@ -93,87 +167,80 @@ export class BaselineEngine {
     }
 
     // ========================
-    // Calculation Helpers
+    // Private Helpers
     // ========================
 
-    private calculateRateStats(events: any[]): { mean: number; stddev: number } {
-        // Group events by hour, calculate requests per hour
-        const hourlyBuckets: Record<string, number> = {};
-
-        events.forEach((e) => {
-            const hourKey = new Date(e.timestamp).toISOString().slice(0, 13);
-            hourlyBuckets[hourKey] = (hourlyBuckets[hourKey] || 0) + 1;
-        });
-
-        const rates = Object.values(hourlyBuckets);
-        return { mean: this.mean(rates), stddev: this.stddev(rates) };
+    /**
+     * Get event counts grouped by hour-of-day using raw SQL.
+     */
+    private async getHourDistribution(
+        agentId: string,
+        windowStart: Date
+    ): Promise<{ hour: number; count: number }[]> {
+        const rows: { hour: number; count: bigint }[] = await prisma.$queryRaw`
+            SELECT EXTRACT(HOUR FROM "timestamp")::int AS hour, COUNT(*)::bigint AS count
+            FROM "behavioral_events"
+            WHERE "agentId" = ${agentId} AND "timestamp" >= ${windowStart}
+            GROUP BY hour
+            ORDER BY hour
+        `;
+        return rows.map((r) => ({ hour: r.hour, count: Number(r.count) }));
     }
 
-    private calculateLengthStats(events: any[]): { mean: number; stddev: number } {
-        const lengths = events.map((e) => e.contentLength).filter(Boolean) as number[];
-        if (lengths.length === 0) return { mean: 0, stddev: 0 };
-        return { mean: this.mean(lengths), stddev: this.stddev(lengths) };
+    /**
+     * Get hourly request counts (bucketed by calendar hour) for rate stats.
+     */
+    private async getHourlyRequestCounts(
+        agentId: string,
+        windowStart: Date
+    ): Promise<{ bucket: string; count: number }[]> {
+        const rows: { bucket: string; count: bigint }[] = await prisma.$queryRaw`
+            SELECT date_trunc('hour', "timestamp")::text AS bucket, COUNT(*)::bigint AS count
+            FROM "behavioral_events"
+            WHERE "agentId" = ${agentId} AND "timestamp" >= ${windowStart}
+            GROUP BY bucket
+            ORDER BY bucket
+        `;
+        return rows.map((r) => ({ bucket: r.bucket, count: Number(r.count) }));
     }
 
-    private calculateEndpointDistribution(events: any[]): Record<string, number> {
-        const counts: Record<string, number> = {};
-        events.forEach((e) => {
-            counts[e.endpoint] = (counts[e.endpoint] || 0) + 1;
-        });
+    /**
+     * Compute stddev for sentiment, content length, and response time via raw SQL.
+     */
+    private async computeStddevs(
+        agentId: string,
+        windowStart: Date
+    ): Promise<{
+        sentimentStddev: number;
+        contentLengthStddev: number;
+        responseTimeMsStddev: number;
+    }> {
+        const rows: {
+            sentiment_stddev: number | null;
+            content_length_stddev: number | null;
+            response_time_stddev: number | null;
+        }[] = await prisma.$queryRaw`
+            SELECT
+                COALESCE(STDDEV_SAMP("sentimentScore"), 0)::float AS sentiment_stddev,
+                COALESCE(STDDEV_SAMP("contentLength"), 0)::float AS content_length_stddev,
+                COALESCE(STDDEV_SAMP("responseTimeMs"), 0)::float AS response_time_stddev
+            FROM "behavioral_events"
+            WHERE "agentId" = ${agentId} AND "timestamp" >= ${windowStart}
+        `;
 
-        const total = events.length;
-        const distribution: Record<string, number> = {};
-        Object.entries(counts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10) // Top 10
-            .forEach(([endpoint, count]) => {
-                distribution[endpoint] = count / total;
-            });
-
-        return distribution;
+        const row = rows[0];
+        return {
+            sentimentStddev: row?.sentiment_stddev || 0,
+            contentLengthStddev: row?.content_length_stddev || 0,
+            responseTimeMsStddev: row?.response_time_stddev || 0,
+        };
     }
 
-    private calculateActiveHours(events: any[]): number[] {
-        const hourCounts: Record<number, number> = {};
-        events.forEach((e) => {
-            const hour = new Date(e.timestamp).getHours();
-            hourCounts[hour] = (hourCounts[hour] || 0) + 1;
-        });
-
-        // Return hours that have >5% of activity
-        const threshold = events.length * 0.05;
-        return Object.entries(hourCounts)
-            .filter(([_, count]) => count > threshold)
-            .map(([hour]) => parseInt(hour))
-            .sort((a, b) => a - b);
-    }
-
-    private calculateInteractionPartners(events: any[]): Record<string, number> {
-        const counts: Record<string, number> = {};
-        events.forEach((e) => {
-            if (e.targetAgentId) {
-                counts[e.targetAgentId] = (counts[e.targetAgentId] || 0) + 1;
-            }
-        });
-
-        // Return top 10
-        return Object.fromEntries(
-            Object.entries(counts)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 10)
-        );
-    }
-
-    private mean(values: number[]): number {
-        if (values.length === 0) return 0;
-        return values.reduce((a, b) => a + b, 0) / values.length;
-    }
-
-    private stddev(values: number[]): number {
+    private computeArrayStddev(values: number[]): number {
         if (values.length < 2) return 0;
-        const m = this.mean(values);
-        const squaredDiffs = values.map((v) => Math.pow(v - m, 2));
-        return Math.sqrt(this.mean(squaredDiffs));
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const squaredDiffs = values.map((v) => Math.pow(v - mean, 2));
+        return Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / (values.length - 1));
     }
 }
 

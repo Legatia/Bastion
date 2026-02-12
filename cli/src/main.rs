@@ -162,6 +162,16 @@ enum Commands {
     Health,
     /// Update Bastion CLI to the latest version
     Update,
+    /// Verify agent on-chain (ERC-8004)
+    Verify {
+        /// Chain to register on
+        #[arg(long, default_value = "base-sepolia")]
+        chain: String,
+        
+        /// Agent ID to verify (uses current directory's agent if not specified)
+        #[arg(long)]
+        agent_id: Option<String>,
+    },
 }
 
 // Configuration stored locally
@@ -244,6 +254,9 @@ async fn main() {
         }
         Commands::Update => {
             handle_update(verbose).await;
+        }
+        Commands::Verify { chain, agent_id } => {
+            handle_verify(chain.clone(), agent_id.clone(), verbose).await;
         }
     }
 }
@@ -1031,6 +1044,81 @@ async fn handle_health(verbose: bool) {
             if verbose {
                 println!("\nConfig path: {:?}", dirs::home_dir().unwrap().join(".bastion/config.json"));
             }
+        }
+    }
+}
+
+async fn handle_verify(chain: String, agent_id_arg: Option<String>, verbose: bool) {
+    let config = load_config();
+    
+    // Get agent ID from argument or local config
+    let agent_id = if let Some(id) = agent_id_arg {
+        id
+    } else if let Some(id) = config.agent_id.clone() {
+        id
+    } else {
+        eprintln!("❌ No agent ID found. Run `bastion init` first or pass --agent-id");
+        std::process::exit(1);
+    };
+
+    println!("\n🛡️  Bastion Agent Verification (ERC-8004)\n");
+    println!("   Chain: {}", chain);
+    println!("   Agent: {}\n", agent_id);
+
+    // Call backend to prepare verification transaction
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/agents/{}/verify", config.backend_url, agent_id))
+        .header("X-API-Key", &config.api_key)
+        .json(&serde_json::json!({ "chain": chain }))
+        .send()
+        .await;
+
+    match resp {
+        Ok(response) => {
+            if response.status().is_success() {
+                let body: serde_json::Value = response.json().await.unwrap_or_default();
+                
+                println!("✅ Verification prepared!\n");
+                println!("To complete verification, sign this transaction in your wallet:\n");
+                println!("   Registry: {}", body["registryAddress"].as_str().unwrap_or("unknown"));
+                println!("   Agent URI: {}", body["agentURI"].as_str().unwrap_or("unknown"));
+                
+                if let Some(tx) = body.get("transaction") {
+                    println!("\n📝 Transaction Details:");
+                    println!("   To: {}", tx["to"].as_str().unwrap_or("unknown"));
+                    println!("   Chain ID: {}", tx["chainId"]);
+                    if verbose {
+                        println!("   Data: {}", tx["data"].as_str().unwrap_or("unknown"));
+                    }
+                }
+
+                println!("\n🌐 Complete verification at:");
+                println!("   https://bastion.legatia.solutions/agents");
+                println!("\n   Use the \"Get Verified\" button on your agent card.");
+                
+            } else if response.status() == 400 {
+                let body: serde_json::Value = response.json().await.unwrap_or_default();
+                if body["error"].as_str() == Some("Already verified") {
+                    println!("✅ Agent is already verified on-chain!");
+                    if let Some(identity) = body.get("identity") {
+                        println!("   On-chain ID: #{}", identity["onchainId"]);
+                        println!("   Chain: {}", identity["registryChain"]);
+                    }
+                } else {
+                    eprintln!("❌ Error: {}", body["message"].as_str().unwrap_or("Bad request"));
+                }
+            } else {
+                eprintln!("❌ Failed to prepare verification: {}", response.status());
+                if verbose {
+                    if let Ok(text) = response.text().await {
+                        eprintln!("   Response: {}", text);
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to reach backend: {}", e);
         }
     }
 }

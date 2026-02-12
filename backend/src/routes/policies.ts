@@ -1,12 +1,11 @@
 // Policy Management Endpoints
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { authenticateApiKey } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Policy creation/update schema
 const policySchema = z.object({

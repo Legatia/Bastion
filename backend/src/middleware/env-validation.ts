@@ -19,9 +19,15 @@ const envConfig: EnvConfig = {
         'LOG_LEVEL',
         'FRONTEND_URL',
         'ALLOWED_ORIGINS',
-        'POLAR_API_KEY',
-        'POLAR_ORGANIZATION_ID',
-        'POLAR_WEBHOOK_SECRET',
+        'BACKEND_URL',
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+        'STRIPE_PRICE_ID_STARTER',
+        'STRIPE_PRICE_ID_PRO',
+        'STRIPE_PRICE_ID_OPENCLAW',
+        'CDP_API_KEY_ID',
+        'CDP_API_KEY_SECRET',
+        'CDP_WALLET_SECRET',
     ],
 };
 
@@ -38,8 +44,8 @@ export function validateEnv(): void {
 
     // Warn about recommended but missing optional vars in production
     if (process.env.NODE_ENV === 'production') {
-        const productionRequired = ['POLAR_API_KEY', 'POLAR_ORGANIZATION_ID', 'POLAR_WEBHOOK_SECRET'];
-        for (const envVar of productionRequired) {
+        const productionRecommended = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'BACKEND_URL'];
+        for (const envVar of productionRecommended) {
             if (!process.env[envVar]) {
                 warnings.push(envVar);
             }

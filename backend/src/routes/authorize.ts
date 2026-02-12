@@ -1,7 +1,8 @@
 // Authorization Endpoint - Core Policy Check API
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { policyEvaluator } from '../services/policy-evaluator';
 import { authenticateApiKey } from '../middleware/auth';
@@ -11,7 +12,6 @@ import { EncryptionService } from '../services/encryption-service';
 import { behavioralCollector } from '../services/behavioralCollector';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Request validation schema
 const authorizeSchema = z.object({
@@ -37,22 +37,6 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
 
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // *** TRIAL EXPIRY CHECK ***
-    // Check if user is on TRIAL tier and if trial has expired
-    if (req.user.tier === 'TRIAL' && req.user.trialEndsAt) {
-      const now = new Date();
-      const trialEnds = new Date(req.user.trialEndsAt);
-
-      if (now > trialEnds) {
-        return res.status(403).json({
-          allowed: false,
-          error: 'TRIAL_EXPIRED',
-          reason: 'Your 3-day trial has expired. Please upgrade your plan to continue using Bastion.',
-          trialEndsAt: trialEnds.toISOString(),
-        });
-      }
     }
 
     // *** QUOTA CHECK ***
@@ -90,17 +74,20 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
 
     const latencyMs = Date.now() - startTime;
 
-    // MoltMind: Collect behavioral event (async, don't block response)
+    // MoltMind: Collect behavioral event (STARTER+ for health score collection)
     if (agent_id) {
-      behavioralCollector
-        .collectEvent({
-          agentId: agent_id,
-          method: action.type,
-          url: action.details?.url || action.details?.endpoint || action.type,
-          requestBody: action.details ? JSON.stringify(action.details) : undefined,
-          responseTimeMs: latencyMs,
-        })
-        .catch((err) => console.error('[MoltMind] Collection error:', err));
+      const moltmindAccess = await QuotaService.checkFeatureAccess(req.user.id, 'MOLTMIND_HEALTH');
+      if (moltmindAccess.allowed) {
+        behavioralCollector
+          .collectEvent({
+            agentId: agent_id,
+            method: action.type,
+            url: action.details?.url || action.details?.endpoint || action.type,
+            requestBody: action.details ? JSON.stringify(action.details) : undefined,
+            responseTimeMs: latencyMs,
+          })
+          .catch((err) => console.error('[MoltMind] Collection error:', err));
+      }
     }
 
     // Log the action (with encryption for privacy)
@@ -108,6 +95,9 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
     const userApiKey = req.user.apiKey;
     const userId = req.user.id;
     const encryptedActionData = await EncryptionService.encrypt(action.details, userApiKey, userId);
+
+    // Extract spending amount (unencrypted) for spending limit tracking
+    const spendingAmount = extractSpendingAmount(action);
 
     const actionLog = await prisma.actionLog.create({
       data: {
@@ -117,6 +107,7 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
         actionType: action.type,
         actionData: Prisma.JsonNull, // Not storing plain data (using Prisma.JsonNull for optional Json field)
         encryptedData: encryptedActionData, // Encrypted with user's API key
+        spendingAmount,
         decision: result.allowed ? 'ALLOWED' : 'BLOCKED',
         reason: result.reason,
         latencyMs,
@@ -179,5 +170,21 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
     });
   }
 });
+
+/**
+ * Extract spending amount from an action for spending limit tracking.
+ * Returns null if the action has no monetary amount.
+ */
+function extractSpendingAmount(action: { type: string; details: Record<string, any> }): number | null {
+  const { details } = action;
+  if (typeof details.amount === 'number') return details.amount;
+  if (typeof details.value === 'number') return details.value;
+  if (typeof details.price === 'number') return details.price;
+  if (details.body) {
+    if (typeof details.body.amount === 'number') return details.body.amount;
+    if (typeof details.body.value === 'number') return details.body.value;
+  }
+  return null;
+}
 
 export default router;

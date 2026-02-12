@@ -1,13 +1,12 @@
 // Referral Management Endpoints
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authenticateApiKey } from '../middleware/auth';
 import { CouponManager } from '../services/coupon-manager';
 import { BillingService } from '../services/billing-service';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * GET /v1/referrals/code

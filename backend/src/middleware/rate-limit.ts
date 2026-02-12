@@ -42,12 +42,12 @@ export const authLimiter = rateLimit({
 });
 
 /**
- * Very strict rate limit for webhooks
- * Prevents webhook flooding
+ * Rate limit for webhooks
+ * Stripe can send bursts during renewals/retries, so keep this generous
  */
 export const webhookLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 webhook requests per minute per IP
+  max: 100, // 100 webhook requests per minute per IP
   message: {
     error: 'Too Many Requests',
     message: 'Webhook rate limit exceeded.',
@@ -62,7 +62,7 @@ export const webhookLimiter = rateLimit({
  */
 export const authorizeLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 60, // 60 requests per minute per IP (1 per second average)
+  max: 300, // 300 requests per minute per IP (5 per second average)
   message: {
     error: 'Too Many Requests',
     message: 'Authorization rate limit exceeded.',

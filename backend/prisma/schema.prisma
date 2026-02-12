@@ -19,9 +19,16 @@ model User {
   // API Keys for CLI/SDK authentication
   apiKey    String   @unique @default(uuid())
 
-  // Subscription
-  tier      SubscriptionTier @default(TRIAL)
-  trialEndsAt DateTime?
+  // Stripe Billing
+  stripeCustomerId String? @unique
+
+  // Subscription tier
+  tier      SubscriptionTier @default(FREE)
+  stripeSubscriptionId String?   // Active Stripe Subscription ID for tier billing
+
+  // Add-ons
+  openclawPurchased Boolean @default(false)
+  moduleSubscriptions ModuleSubscription[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -45,7 +52,7 @@ model User {
 
   coupons            Coupon[]
   monthlyDiscounts   MonthlyDiscount[]
-  polarDiscountCodes PolarDiscountCode[]
+  // PolarDiscountCode removed (migrated to Stripe)
   referralsMade      Referral[] @relation("Referrer")
   referralReceived   Referral?  @relation("Referred")
 
@@ -53,11 +60,20 @@ model User {
 }
 
 enum SubscriptionTier {
-  TRIAL     // Free 3-day trial
-  STARTER   // $15/mo
-  GROWTH    // $99/mo
-  PRO       // $299/mo
+  FREE       // Default, no credit card required
+  STARTER    // $29/mo
+  PRO        // $79/mo
   ENTERPRISE // Custom
+}
+
+// ModuleType kept for data preservation (legacy module_subscriptions table)
+enum ModuleType {
+  OPENCLAW
+  BASTION_PROXY
+  ERC8004_LITE
+  ERC8004_STANDARD
+  ERC8004_REALTIME
+  MOLTMIND
 }
 
 // Agents (Instances being monitored)
@@ -75,13 +91,18 @@ model Agent {
   status      AgentStatus @default(ACTIVE)
   lastSeenAt  DateTime?
 
+  // CDP Server Wallet
+  cdpWalletAddress    String?   // EVM address from CDP
+  cdpAccountName      String?   @unique // "bastion-agent-{uuid}" for idempotent provisioning
+
   // ERC-8004 On-chain Identity
-  onchainId       String?   // tokenId from registry
-  registryChain   String?   // "base-sepolia" | "base"
-  registryAddress String?   // Identity Registry contract address
-  agentURI        String?   // URL to registration file
-  ownerAddress    String?   // Wallet that owns the NFT
-  registeredAt    DateTime? // When agent was verified on-chain
+  onchainId           String?   // tokenId from registry
+  registryChain       String?   // "base-sepolia" | "base"
+  registryAddress     String?   // Identity Registry contract address
+  agentURI            String?   // URL to registration file
+  ownerAddress        String?   // Wallet that owns the NFT
+  registrationTxHash  String?   // Transaction hash of on-chain registration
+  registeredAt        DateTime? // When agent was verified on-chain
 
   // Timestamps
   createdAt   DateTime @default(now())
@@ -90,6 +111,7 @@ model Agent {
   // Relations
   user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
   actionLogs  ActionLog[]
+  moduleSubscriptions ModuleSubscription[]
   
   // MoltMind Relations
   behavioralEvents  BehavioralEvent[]
@@ -106,7 +128,28 @@ enum AgentStatus {
   BLOCKED
 }
 
-// ========================================
+// Module Subscriptions (per-agent billing)
+model ModuleSubscription {
+  id          String     @id @default(uuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  agentId     String?    // null for user-level modules (e.g. OpenClaw)
+  agent       Agent?     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  module      ModuleType
+  active      Boolean    @default(true)
+
+  // Billing metadata
+  priceAtActivation Int?  // Price in cents at time of activation
+  stripeSubscriptionId String? // Linked Stripe Subscription ID
+  activatedAt DateTime   @default(now())
+  cancelledAt DateTime?
+
+  @@unique([userId, agentId, module])
+  @@index([userId, active])
+  @@map("module_subscriptions")
+}
 // MoltMind - Cognitive Monitoring Models
 // ========================================
 
@@ -262,6 +305,7 @@ model ActionLog {
   actionType      String   // e.g., "http_request", "file_write", "subprocess"
   actionData      Json?    // Full action payload (plain, if not encrypted)
   encryptedData   String?  // Encrypted action payload (if encryption enabled)
+  spendingAmount  Float?   // Extracted amount for spending limit tracking (unencrypted)
 
   // Decision
   decision    Decision
@@ -389,30 +433,4 @@ model WebhookEvent {
   @@map("webhook_events")
 }
 
-// Polar.sh Discount Code Tracking
-model PolarDiscountCode {
-  id              String    @id @default(uuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Polar discount details
-  polarDiscountId String    @unique  // Polar's discount ID
-  code            String    @unique  // The discount code (e.g., "BASTION1A2B3C4D")
-  percentage      Int                // Discount percentage (5-50)
-  couponsUsed     Int                // Number of Bastion coupons represented
-
-  // Validity period
-  monthStart      DateTime           // Month this discount is for
-  monthEnd        DateTime           // Expiration date
-  expiresAt       DateTime           // Same as monthEnd
-
-  // Redemption tracking
-  redeemed        Boolean   @default(false)
-  redeemedAt      DateTime?
-
-  createdAt       DateTime  @default(now())
-
-  @@index([userId, monthStart])
-  @@index([code])
-  @@map("polar_discount_codes")
-}
+// PolarDiscountCode removed

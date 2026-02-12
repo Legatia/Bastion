@@ -1,9 +1,25 @@
 // ERC-8004 Agent Identity Service
-// Handles building registration files and preparing transactions
+// Handles building registration files, preparing transactions, and on-chain verification
 
-import { PrismaClient, Agent } from '@prisma/client';
+import { Agent } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { driftDetector } from './driftDetector';
+import {
+    encodeFunctionData,
+    decodeEventLog,
+    createPublicClient,
+    http,
+    parseAbi,
+    type Hex,
+} from 'viem';
+import { baseSepolia, base } from 'viem/chains';
 
-const prisma = new PrismaClient();
+// ERC-8004 Identity Registry ABI (minimal — register + events)
+const REGISTRY_ABI = parseAbi([
+    'function register(string agentURI) external returns (uint256 agentId)',
+    'event Registered(uint256 indexed agentId, string agentURI, address indexed owner)',
+    'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
+]);
 
 // Registry addresses per chain
 export const IDENTITY_REGISTRIES: Record<string, { address: string; rpcUrl: string }> = {
@@ -12,7 +28,7 @@ export const IDENTITY_REGISTRIES: Record<string, { address: string; rpcUrl: stri
         rpcUrl: 'https://sepolia.base.org',
     },
     'base': {
-        address: '0x8004A818BFB912233c491871b3d84c89A494BD9e', // TODO: Update with mainnet address
+        address: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432',
         rpcUrl: 'https://mainnet.base.org',
     },
 };
@@ -28,6 +44,19 @@ export interface RegistrationFile {
     active: boolean;
     registrations: Registration[];
     supportedTrust: string[];
+    reputation?: ReputationAttestation;
+}
+
+export interface ReputationAttestation {
+    protected: boolean;
+    healthScore: number | null;       // 0-100, null if MoltMind not active
+    identityCoherence: number | null; // 0-100
+    behavioralStability: number | null; // 0-100
+    interactionHealth: number | null; // 0-100
+    policyLevel: 'strict' | 'standard' | 'permissive' | 'none';
+    activePolicies: string[];         // Types of active policies (e.g. ['DLP', 'RATE_LIMIT'])
+    uptimeDays: number;               // Days since registration without critical alerts
+    lastChecked: string;              // ISO timestamp
 }
 
 export interface ServiceEndpoint {
@@ -50,6 +79,7 @@ export function buildRegistrationFile(
         baseUrl: string;
         chain: string;
         agentId?: number;
+        reputation?: ReputationAttestation;
     }
 ): RegistrationFile {
     const registry = IDENTITY_REGISTRIES[options.chain];
@@ -71,7 +101,7 @@ export function buildRegistrationFile(
                 version: '1.0.0',
             },
         ],
-        x402Support: false, // TODO: Enable when payment integration is ready
+        x402Support: !!agent.cdpWalletAddress,
         active: agent.status === 'ACTIVE',
         registrations: options.agentId
             ? [
@@ -82,6 +112,89 @@ export function buildRegistrationFile(
             ]
             : [],
         supportedTrust: ['reputation'],
+        reputation: options.reputation,
+    };
+}
+
+// Policy types that contribute to "strict" classification
+const STRICT_POLICY_TYPES = ['DLP', 'BLOCKLIST', 'SPENDING_LIMIT', 'FILE_PROTECTION'];
+const STANDARD_POLICY_TYPES = ['RATE_LIMIT', 'ALLOWLIST', 'TIME_WINDOW', 'PATTERN_MATCH'];
+
+/**
+ * Classify policy strictness based on active policy types and count.
+ * strict:     Has DLP + at least 2 other protective policies
+ * standard:   Has at least 2 active policies
+ * permissive: Has 1 policy
+ * none:       No policies
+ */
+export function classifyPolicyLevel(
+    policies: { type: string; enabled: boolean }[]
+): 'strict' | 'standard' | 'permissive' | 'none' {
+    const active = policies.filter((p) => p.enabled);
+    if (active.length === 0) return 'none';
+
+    const hasStrict = active.some((p) => STRICT_POLICY_TYPES.includes(p.type));
+    const strictCount = active.filter((p) => STRICT_POLICY_TYPES.includes(p.type)).length;
+
+    if (hasStrict && active.length >= 3 && strictCount >= 2) return 'strict';
+    if (active.length >= 2) return 'standard';
+    return 'permissive';
+}
+
+/**
+ * Build the full reputation attestation for an agent.
+ * Queries MoltMind health score + user policies.
+ */
+export async function buildReputationAttestation(
+    agent: Agent,
+    userId: string
+): Promise<ReputationAttestation> {
+    // Fetch health score, policies, and user tier in parallel
+    const [healthData, policies, user] = await Promise.all([
+        driftDetector.getHealthScore(agent.id),
+        prisma.policy.findMany({
+            where: { userId, enabled: true },
+            select: { type: true, enabled: true },
+        }),
+        prisma.user.findUnique({
+            where: { id: userId },
+            select: { tier: true },
+        }),
+    ]);
+
+    // MoltMind health data is available for STARTER+ tiers
+    const hasMoltMind = user && ['STARTER', 'PRO', 'ENTERPRISE'].includes(user.tier);
+
+    const isProtected = true; // If this endpoint is reachable, agent is in Bastion
+    const policyLevel = classifyPolicyLevel(policies);
+    const activePolicies = [...new Set(policies.map((p) => p.type))];
+
+    // Calculate uptime: days since registration (or last critical alert)
+    let uptimeDays = 0;
+    if (agent.registeredAt) {
+        const lastCritical = await prisma.cognitiveAlert.findFirst({
+            where: {
+                agentId: agent.id,
+                severity: 'critical',
+                acknowledged: false,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const since = lastCritical?.createdAt || agent.registeredAt;
+        uptimeDays = Math.floor((Date.now() - since.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    return {
+        protected: isProtected,
+        healthScore: hasMoltMind ? (healthData?.score ?? null) : null,
+        identityCoherence: hasMoltMind ? (healthData?.identityCoherence ?? null) : null,
+        behavioralStability: hasMoltMind ? (healthData?.behavioralStability ?? null) : null,
+        interactionHealth: hasMoltMind ? (healthData?.interactionHealth ?? null) : null,
+        policyLevel,
+        activePolicies,
+        uptimeDays,
+        lastChecked: new Date().toISOString(),
     };
 }
 
@@ -93,21 +206,15 @@ export function getAgentURI(agentId: string, baseUrl: string): string {
 }
 
 /**
- * Build unsigned transaction data for registering an agent
+ * Build unsigned transaction data for registering an agent.
+ * Uses viem's ABI encoder for correct encoding (replaces manual hex encoding).
  */
-export function buildRegisterTxData(agentURI: string): string {
-    // ERC-8004 register(string agentURI) function signature
-    // function selector: keccak256("register(string)")[:4]
-    const functionSelector = '0x1e59c529'; // register(string)
-
-    // Encode the agentURI parameter
-    // ABI encoding: offset (32 bytes) + length (32 bytes) + string data (padded to 32 bytes)
-    const offset = '0000000000000000000000000000000000000000000000000000000000000020'; // 32 in hex
-    const uriBytes = Buffer.from(agentURI, 'utf-8');
-    const length = uriBytes.length.toString(16).padStart(64, '0');
-    const data = uriBytes.toString('hex').padEnd(Math.ceil(uriBytes.length / 32) * 64, '0');
-
-    return functionSelector + offset + length + data;
+export function buildRegisterTxData(agentURI: string): Hex {
+    return encodeFunctionData({
+        abi: REGISTRY_ABI,
+        functionName: 'register',
+        args: [agentURI],
+    });
 }
 
 /**
@@ -118,7 +225,7 @@ export function prepareRegistrationTx(
     chain: string
 ): {
     to: string;
-    data: string;
+    data: Hex;
     chainId: number;
     value: string;
 } {
@@ -138,7 +245,96 @@ export function prepareRegistrationTx(
 }
 
 /**
- * Update agent with on-chain registration details after successful tx
+ * Verify a registration transaction on-chain.
+ * Fetches the tx receipt, checks it targeted the correct registry,
+ * and parses the Registered event to extract agentId and owner.
+ */
+export async function verifyRegistrationTx(
+    txHash: Hex,
+    chain: string,
+    expectedAgentURI: string
+): Promise<{ agentId: string; ownerAddress: string }> {
+    const registry = IDENTITY_REGISTRIES[chain];
+    if (!registry) {
+        throw new Error(`Unsupported chain: ${chain}`);
+    }
+
+    const viemChain = chain === 'base-sepolia' ? baseSepolia : base;
+    const client = createPublicClient({
+        chain: viemChain,
+        transport: http(registry.rpcUrl),
+    });
+
+    let receipt;
+    try {
+        receipt = await client.getTransactionReceipt({ hash: txHash });
+    } catch (rpcError: any) {
+        // viem throws if the tx is not found (not yet mined or invalid hash)
+        if (rpcError.message?.includes('could not be found') || rpcError.message?.includes('not found')) {
+            throw new Error(
+                'Transaction not yet confirmed on-chain. Please wait for the transaction to be mined and try again.'
+            );
+        }
+        throw new Error(`Failed to fetch transaction: ${rpcError.message}`);
+    }
+
+    if (receipt.status !== 'success') {
+        throw new Error('Transaction reverted on-chain');
+    }
+
+    // Verify tx was sent to the correct registry contract
+    if (receipt.to?.toLowerCase() !== registry.address.toLowerCase()) {
+        throw new Error(
+            `Transaction target ${receipt.to} does not match registry ${registry.address}`
+        );
+    }
+
+    // Parse logs for the Registered event
+    for (const log of receipt.logs) {
+        // Only look at logs from the registry contract
+        if (log.address.toLowerCase() !== registry.address.toLowerCase()) continue;
+
+        try {
+            const decoded = decodeEventLog({
+                abi: REGISTRY_ABI,
+                data: log.data,
+                topics: log.topics,
+            });
+
+            if (decoded.eventName === 'Registered') {
+                const args = decoded.args as {
+                    agentId: bigint;
+                    agentURI: string;
+                    owner: `0x${string}`;
+                };
+
+                // Verify the agentURI in the event matches this agent
+                if (args.agentURI !== expectedAgentURI) {
+                    throw new Error(
+                        `agentURI mismatch: tx registered "${args.agentURI}" but expected "${expectedAgentURI}"`
+                    );
+                }
+
+                return {
+                    agentId: args.agentId.toString(),
+                    ownerAddress: args.owner,
+                };
+            }
+        } catch (e: any) {
+            // If it's our own thrown error, re-throw
+            if (e.message?.includes('mismatch') || e.message?.includes('does not match')) {
+                throw e;
+            }
+            // Otherwise it's a decode error for a different event — skip
+        }
+    }
+
+    throw new Error('No Registered event found in transaction logs');
+}
+
+/**
+ * Update agent with verified on-chain registration details.
+ * Only called after verifyRegistrationTx succeeds.
  */
 export async function recordRegistration(
     agentId: string,
@@ -160,6 +356,7 @@ export async function recordRegistration(
             registryAddress: registry.address,
             agentURI: getAgentURI(agentId, baseUrl),
             ownerAddress: params.ownerAddress,
+            registrationTxHash: params.txHash,
             registeredAt: new Date(),
         },
     });

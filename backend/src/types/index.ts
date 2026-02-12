@@ -110,7 +110,7 @@ export interface User {
   tier: SubscriptionTier;
 }
 
-export type SubscriptionTier = 'STARTER' | 'GROWTH' | 'PRO' | 'ENTERPRISE';
+export type SubscriptionTier = 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
 
 export interface Policy {
   id: bigint;

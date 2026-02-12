@@ -1,14 +1,14 @@
 // Authentication Routes
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient, SubscriptionTier } from '@prisma/client';
+import { SubscriptionTier } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { logger } from '../middleware/logger';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * Generate cryptographically secure API key
@@ -69,6 +69,12 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     }
 });
 
+const registerSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+    referral_code: z.string().optional(),
+});
+
 /**
  * POST /v1/auth/register
  * Create a new user and return session
@@ -76,7 +82,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
  */
 router.post('/auth/register', async (req: Request, res: Response) => {
     try {
-        const { email, password, referral_code } = req.body;
+        const { email, password, referral_code } = registerSchema.parse(req.body);
 
         const existing = await prisma.user.findUnique({
             where: { email },
@@ -108,8 +114,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
                 password: hashedPassword,
                 name: email.split('@')[0],
                 apiKey: generateSecureApiKey(),
-                tier: SubscriptionTier.TRIAL,
-                trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+                tier: SubscriptionTier.FREE,
                 referredByCode: referral_code || null,
                 referralCode: `ref_${Math.random().toString(36).substring(2, 10)}`,
             },
@@ -194,8 +199,7 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                     password: '', // No password for OAuth users
                     name: googleUser.name || googleUser.email.split('@')[0],
                     apiKey: generateSecureApiKey(),
-                    tier: SubscriptionTier.TRIAL,
-                    trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+                    tier: SubscriptionTier.FREE,
                     googleId: googleUser.id,
                     referralCode: `ref_${Math.random().toString(36).substring(2, 10)}`,
                 },

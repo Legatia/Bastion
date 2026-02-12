@@ -1,10 +1,8 @@
 // Authentication Middleware
 
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { logger } from './logger';
-
-const prisma = new PrismaClient();
 
 // Extend Express Request to include user
 declare global {
@@ -15,7 +13,6 @@ declare global {
         email: string;
         apiKey: string;
         tier: string;
-        trialEndsAt: Date | null;
       };
     }
   }
@@ -50,7 +47,6 @@ export async function authenticateApiKey(
         email: true,
         apiKey: true,
         tier: true,
-        trialEndsAt: true,
       },
     });
 
@@ -79,12 +75,12 @@ export async function authenticateApiKey(
 /**
  * Check if user has access to specific tier features
  */
-export function requireTier(minTier: 'STARTER' | 'GROWTH' | 'PRO' | 'ENTERPRISE') {
-  const tierLevels = {
+export function requireTier(minTier: 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE') {
+  const tierLevels: Record<string, number> = {
+    FREE: 0,
     STARTER: 1,
-    GROWTH: 2,
-    PRO: 3,
-    ENTERPRISE: 4,
+    PRO: 2,
+    ENTERPRISE: 3,
   };
 
   return (req: Request, res: Response, next: NextFunction) => {

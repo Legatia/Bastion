@@ -14,6 +14,8 @@ interface Agent {
     status: string;
     lastSeenAt?: string;
     createdAt: string;
+    // CDP Wallet
+    cdpWalletAddress?: string;
     // ERC-8004 fields
     onchainId?: string;
     registryChain?: string;

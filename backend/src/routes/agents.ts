@@ -1,13 +1,13 @@
 // Agent Management Endpoints
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { authenticateApiKey } from '../middleware/auth';
 import { QuotaService } from '../services/quota-service';
+import { CdpWalletService } from '../services/cdp-wallet-service';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const agentSchema = z.object({
   name: z.string().min(1).max(255),
@@ -72,6 +72,14 @@ router.post('/agents', authenticateApiKey, async (req: Request, res: Response) =
         ...validated,
       },
     });
+
+    // Gate CDP wallet provisioning behind STARTER+ tier
+    const walletAccess = await QuotaService.checkFeatureAccess(req.user.id, 'CDP_WALLET');
+    if (walletAccess.allowed) {
+      CdpWalletService.provisionWallet(agent.id).catch((err) => {
+        console.error('[CDP] Non-blocking wallet provisioning failed:', err.message);
+      });
+    }
 
     res.status(201).json({ agent });
   } catch (error: any) {

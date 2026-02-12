@@ -1,7 +1,7 @@
 // Policy Evaluation Engine
 // Core logic for determining if an action should be allowed or blocked
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import {
   Action,
   Policy,
@@ -9,8 +9,7 @@ import {
   EvaluationResult,
   EvaluationContext,
 } from '../types';
-
-const prisma = new PrismaClient();
+import { DLPScanner } from './dlp-scanner';
 
 export class PolicyEvaluator {
   /**
@@ -107,23 +106,18 @@ export class PolicyEvaluator {
     // Calculate time window
     const windowStart = this.getWindowStart(window);
 
-    // Get total spending in this window
-    const logs = await prisma.actionLog.findMany({
+    // Sum spending via DB aggregation on the dedicated spendingAmount column
+    const result = await prisma.actionLog.aggregate({
       where: {
         userId: context.user.id.toString(),
         decision: 'ALLOWED',
         timestamp: { gte: windowStart },
+        spendingAmount: { not: null },
       },
+      _sum: { spendingAmount: true },
     });
 
-    const totalSpent = logs.reduce((sum, log) => {
-      const logAmount = this.extractAmount({
-        type: log.actionType as any,
-        details: log.actionData as any,
-      });
-      return sum + (logAmount || 0);
-    }, 0);
-
+    const totalSpent = result._sum.spendingAmount || 0;
     const newTotal = totalSpent + amount;
 
     if (newTotal > max_amount) {
@@ -212,6 +206,10 @@ export class PolicyEvaluator {
       case 'regex':
       default:
         try {
+          if (this.isUnsafeRegex(pattern)) {
+            console.warn(`[SECURITY] Rejected potentially catastrophic regex: ${pattern}`);
+            return { allowed: true, reason: 'Regex pattern rejected (too complex)' };
+          }
           const regex = new RegExp(pattern, 'i');
           matches = regex.test(value);
         } catch (e) {
@@ -291,9 +289,6 @@ export class PolicyEvaluator {
       enabled_pattern_types = [],
     } = config;
 
-    // Import DLP scanner
-    const { DLPScanner } = require('./dlp-scanner');
-
     // Convert action to string for scanning
     const content = JSON.stringify(action.details);
 
@@ -318,6 +313,10 @@ export class PolicyEvaluator {
     if (scan_patterns && scan_patterns.length > 0) {
       for (const pattern of scan_patterns) {
         try {
+          if (this.isUnsafeRegex(pattern)) {
+            console.warn(`[SECURITY] Rejected potentially catastrophic DLP regex: ${pattern}`);
+            continue;
+          }
           const regex = new RegExp(pattern, 'gi');
           const matches = content.match(regex);
 
@@ -348,18 +347,46 @@ export class PolicyEvaluator {
     _action: Action
   ): EvaluationResult {
     const config = policy.config as PolicyConfig;
-    const { allowed_hours, allowed_days } = config;
+    const { allowed_hours, allowed_days, timezone } = config;
 
+    // Use user's configured timezone or fall back to UTC
     const now = new Date();
-    const hour = now.getHours();
-    const day = now.getDay();
+    let hour: number;
+    let day: number;
+
+    if (timezone) {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: timezone,
+          hour: 'numeric',
+          hourCycle: 'h23',
+        });
+        const dayFormatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: timezone,
+          weekday: 'short',
+        });
+        hour = parseInt(formatter.format(now), 10);
+        const dayStr = dayFormatter.format(now);
+        const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+        day = dayMap[dayStr] ?? now.getDay();
+      } catch {
+        // Invalid timezone — fall back to server time
+        console.warn(`Invalid timezone in time window policy: ${timezone}`);
+        hour = now.getHours();
+        day = now.getDay();
+      }
+    } else {
+      hour = now.getUTCHours();
+      day = now.getUTCDay();
+    }
 
     if (allowed_hours) {
       const { start, end } = allowed_hours;
       if (hour < start || hour >= end) {
+        const tz = timezone || 'UTC';
         return {
           allowed: false,
-          reason: `Action not allowed at this time (${hour}:00). Allowed: ${start}:00-${end}:00`,
+          reason: `Action not allowed at this time (${hour}:00 ${tz}). Allowed: ${start}:00-${end}:00`,
           policyId: policy.id,
         };
       }
@@ -389,9 +416,10 @@ export class PolicyEvaluator {
       return { allowed: true };
     }
 
-    const actionStr = JSON.stringify(action.details).toLowerCase();
-    const isAllowed = allowed_values.some((value) =>
-      actionStr.includes(value.toLowerCase())
+    // Match against extracted values only (not keys) to prevent false positives
+    const values = this.extractStringValues(action.details).map((v) => v.toLowerCase());
+    const isAllowed = allowed_values.some((allowed) =>
+      values.some((v) => v.includes(allowed.toLowerCase()))
     );
 
     if (!isAllowed) {
@@ -413,9 +441,10 @@ export class PolicyEvaluator {
     const config = policy.config as PolicyConfig;
     const { blocked_values = [] } = config;
 
-    const actionStr = JSON.stringify(action.details).toLowerCase();
-    const isBlocked = blocked_values.some((value) =>
-      actionStr.includes(value.toLowerCase())
+    // Match against extracted values only (not keys) to prevent false positives
+    const values = this.extractStringValues(action.details).map((v) => v.toLowerCase());
+    const isBlocked = blocked_values.some((blocked) =>
+      values.some((v) => v.includes(blocked.toLowerCase()))
     );
 
     if (isBlocked) {
@@ -448,6 +477,12 @@ export class PolicyEvaluator {
       return { allowed: true };
     }
 
+    // SSRF protection: validate the webhook URL
+    if (!this.isSafeWebhookUrl(webhook_url)) {
+      console.warn(`[SECURITY] Blocked SSRF attempt to: ${webhook_url}`);
+      return { allowed: true, reason: 'Webhook URL blocked by security policy' };
+    }
+
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), webhook_timeout_ms);
@@ -475,6 +510,50 @@ export class PolicyEvaluator {
       console.error('Webhook evaluation failed:', error);
       // Fail open (allow) on webhook error
       return { allowed: true, reason: 'Webhook timeout/error' };
+    }
+  }
+
+  /**
+   * Validate that a webhook URL is safe (not targeting internal services).
+   * Blocks private IPs, localhost, link-local, and cloud metadata endpoints.
+   */
+  private isSafeWebhookUrl(urlStr: string): boolean {
+    try {
+      const url = new URL(urlStr);
+
+      // Only allow HTTP(S)
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+        return false;
+      }
+
+      const hostname = url.hostname.toLowerCase();
+
+      // Block localhost variants
+      if (
+        hostname === 'localhost' ||
+        hostname === '0.0.0.0' ||
+        hostname === '[::1]' ||
+        hostname === '127.0.0.1'
+      ) {
+        return false;
+      }
+
+      // Block private/reserved IP ranges
+      const parts = hostname.split('.');
+      if (parts.length === 4 && parts.every((p) => /^\d+$/.test(p))) {
+        const octets = parts.map(Number);
+        const [a, b] = octets;
+        if (a === 10) return false;                           // 10.0.0.0/8
+        if (a === 172 && b >= 16 && b <= 31) return false;   // 172.16.0.0/12
+        if (a === 192 && b === 168) return false;             // 192.168.0.0/16
+        if (a === 127) return false;                          // 127.0.0.0/8
+        if (a === 169 && b === 254) return false;             // 169.254.0.0/16 (link-local + cloud metadata)
+        if (a === 0) return false;                            // 0.0.0.0/8
+      }
+
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -518,6 +597,34 @@ export class PolicyEvaluator {
 
   private getNestedValue(obj: any, path: string): any {
     return path.split('.').reduce((current, key) => current?.[key], obj);
+  }
+
+  /**
+   * Detect regex patterns that could cause catastrophic backtracking (ReDoS).
+   * Rejects patterns with nested quantifiers like (a+)+, (a*)*b, (a|b+)+.
+   */
+  private isUnsafeRegex(pattern: string): boolean {
+    // Nested quantifiers: a quantifier applied to a group that contains a quantifier
+    // e.g. (a+)+, (.*a)*, ([^x]+)+
+    if (/\([^)]*[+*][^)]*\)[+*{]/.test(pattern)) return true;
+    // Alternation with overlapping quantified branches: (a+|a+)+
+    if (/\([^)]*\|[^)]*\)[+*{]/.test(pattern) && /[+*]/.test(pattern)) return true;
+    // Pattern length limit — very long patterns are suspicious
+    if (pattern.length > 500) return true;
+    return false;
+  }
+
+  /**
+   * Recursively extract all string values from an object (ignoring keys).
+   */
+  private extractStringValues(obj: any): string[] {
+    if (typeof obj === 'string') return [obj];
+    if (Array.isArray(obj)) return obj.flatMap((v) => this.extractStringValues(v));
+    if (obj && typeof obj === 'object') {
+      return Object.values(obj).flatMap((v) => this.extractStringValues(v));
+    }
+    if (typeof obj === 'number' || typeof obj === 'boolean') return [String(obj)];
+    return [];
   }
 }
 
