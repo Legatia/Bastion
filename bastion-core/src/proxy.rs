@@ -35,7 +35,7 @@ pub async fn proxy_handler(
 ) -> Response {
     let method = req.method().clone();
     let uri = req.uri().clone();
-    // let headers = req.headers().clone();
+    let headers = req.headers().clone();
 
     // Log intercepted request
     // In a real implementation we would call authorize_action here internally first
@@ -62,7 +62,8 @@ pub async fn proxy_handler(
                     }
                 }
                 Err(e) => {
-                    eprintln!("   ⚠️  Policy check failed: {}", e);
+                    eprintln!("   🛑 Policy check failed (fail-closed): {}", e);
+                    return (StatusCode::BAD_GATEWAY, "Backend unreachable — blocked for safety").into_response();
                 }
             }
 
@@ -118,14 +119,29 @@ pub async fn proxy_handler(
             }
         }
         Err(e) => {
-             eprintln!("   ⚠️  Policy check failed: {}", e);
+            eprintln!("   🛑 Policy check failed (fail-closed): {}", e);
+            return (StatusCode::BAD_GATEWAY, "Backend unreachable — blocked for safety").into_response();
         }
     }
 
     // Forward request
     let client = reqwest::Client::new();
-    let resp = match client
-        .request(method, url)
+    let mut builder = client.request(method, url);
+
+    // Forward original request headers (host, auth, content-type, etc.)
+    for (key, value) in headers.iter() {
+        // Skip hop-by-hop headers that shouldn't be forwarded
+        let name = key.as_str();
+        if name == "host" || name == "connection" || name == "proxy-authorization"
+            || name == "proxy-connection" || name == "te" || name == "transfer-encoding"
+            || name == "upgrade"
+        {
+            continue;
+        }
+        builder = builder.header(key, value);
+    }
+
+    let resp = match builder
         .body(body_bytes)
         .send()
         .await {
@@ -189,7 +205,7 @@ async fn check_policy(config: &Config, action_type: String, details: serde_json:
                 if body.contains("QUOTA_EXCEEDED") {
                     eprintln!("\n🚫 QUOTA EXCEEDED");
                     eprintln!("   You've reached your plan's limit.");
-                    eprintln!("   Upgrade at: https://bastion.ai/billing\n");
+                    eprintln!("   Upgrade at: https://bastion.legatia.solutions/billing\n");
                     Err("QUOTA_EXCEEDED".to_string())
                 } else {
                     Err(format!("Access denied: {}", body))

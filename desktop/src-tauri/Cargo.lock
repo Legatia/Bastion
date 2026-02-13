@@ -310,6 +310,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "bastion-desktop"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bastion-core",
+ "chrono",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-deep-link",
+ "tauri-plugin-opener",
+ "tauri-plugin-shell",
+ "tauri-plugin-updater",
+ "tokio",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4205,25 +4224,6 @@ dependencies = [
  "webview2-com",
  "window-vibrancy",
  "windows",
-]
-
-[[package]]
-name = "tauri-appbastion-desktop"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bastion-core",
- "chrono",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-deep-link",
- "tauri-plugin-opener",
- "tauri-plugin-shell",
- "tauri-plugin-updater",
- "tokio",
 ]
 
 [[package]]

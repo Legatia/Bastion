@@ -1,7 +1,7 @@
 // Bastion Desktop API Client
 // Mirrors dashboard/lib/api.ts, adapted for Vite env
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://bastion-gamma.vercel.app/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://bastion.legatia.solutions/v1';
 
 const getApiKey = (): string => {
     const stored = localStorage.getItem('bastion_api_key');

@@ -5,9 +5,14 @@ mod modules;
 
 use modules::openclaw::{install_openclaw, run_openclaw, stop_openclaw, save_config, OpenClawState};
 use modules::bastion::{start_bastion_proxy, stop_bastion_proxy, get_bastion_status, BastionState};
-use modules::identity::{check_identity_status, verify_identity};
-use modules::moltmind::{start_moltmind, stop_moltmind, get_moltmind_status, get_behavior_events, MoltMindState};
+use modules::identity::{check_identity_status, verify_identity, register_agent, get_agent_wallet};
+use modules::moltmind::{
+    start_moltmind, stop_moltmind, get_moltmind_status, get_behavior_events,
+    get_health_score, get_cognitive_alerts, acknowledge_alert, get_baseline, run_drift_analysis,
+    MoltMindState,
+};
 use modules::billing::{sync_billing, get_active_modules, check_module_access, activate_module, get_billing_summary};
+use modules::policy::{list_policies, get_policy, create_policy, toggle_policy, delete_policy};
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -116,9 +121,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             install_openclaw, run_openclaw, stop_openclaw, save_config,
             start_bastion_proxy, stop_bastion_proxy, get_bastion_status,
-            verify_identity, check_identity_status,
+            verify_identity, check_identity_status, register_agent, get_agent_wallet,
             start_moltmind, stop_moltmind, get_moltmind_status, get_behavior_events,
-            sync_billing, get_active_modules, check_module_access, activate_module, get_billing_summary
+            get_health_score, get_cognitive_alerts, acknowledge_alert, get_baseline, run_drift_analysis,
+            sync_billing, get_active_modules, check_module_access, activate_module, get_billing_summary,
+            list_policies, get_policy, create_policy, toggle_policy, delete_policy
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

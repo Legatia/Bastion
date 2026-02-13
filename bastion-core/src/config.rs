@@ -22,7 +22,7 @@ pub fn load_config() -> Result<Config, String> {
     let mut needs_save = false;
     if let Some(backend_url) = config_json["backend_url"].as_str() {
         if backend_url.contains("localhost:3000") {
-            config_json["backend_url"] = serde_json::json!("https://bastion-gamma.vercel.app/v1");
+            config_json["backend_url"] = serde_json::json!("https://bastion.legatia.solutions/v1");
             needs_save = true;
         }
     }
@@ -50,7 +50,7 @@ pub fn load_config() -> Result<Config, String> {
         api_key: config_json["api_key"].as_str().unwrap_or_default().to_string(),
         backend_url: config_json["backend_url"]
             .as_str()
-            .unwrap_or("https://bastion-gamma.vercel.app/v1")
+            .unwrap_or("https://bastion.legatia.solutions/v1")
             .to_string(),
         agent_id: agent_id.or(loaded_agent_id),
     })
