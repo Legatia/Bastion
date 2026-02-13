@@ -1,14 +1,14 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { Shield, Lock, Zap, Activity } from 'lucide-react';
+import { Shield, Lock, Activity } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
 export default function Home() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
       <Head>
-        <title>Bastion Protocol | Trustless AI Insurance</title>
-        <meta name="description" content="The Immutable Supervisor for the Agent Economy" />
+        <title>Bastion | AI Agent Security</title>
+        <meta name="description" content="The security layer for autonomous AI agents. Policy enforcement, on-chain identity, and behavioral monitoring with zero code changes." />
       </Head>
 
       {/* Navigation */}
@@ -27,16 +27,16 @@ export default function Home() {
           fontWeight: 'bold',
           letterSpacing: '1px'
         }}>
-          ENTERPRISE SECURITY PLATFORM
+          AI AGENT SECURITY
         </div>
 
         <h1 style={{ fontSize: '4rem', maxWidth: '800px', lineHeight: '1.1', marginBottom: '1.5rem' }}>
-          Immutable Guardrails for <br />
-          <span className="gradient-text">Autonomous Intelligence</span>
+          The Security Layer for <br />
+          <span className="gradient-text">Autonomous AI Agents</span>
         </h1>
 
         <p style={{ fontSize: '1.2rem', color: '#889', maxWidth: '600px', marginBottom: '2rem', lineHeight: '1.6' }}>
-          Prevent rogue agent behavior with a programmable policy engine. Bastion acts as a secure firewall and audit layer for your AI workforce.
+          Policy enforcement, on-chain identity, and behavioral monitoring for your AI workforce. Works via HTTP proxy — zero code changes required.
         </p>
 
         <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '3rem' }}>
@@ -44,10 +44,10 @@ export default function Home() {
             background: '#fff', color: '#000', padding: '1rem 2rem', borderRadius: '8px',
             textDecoration: 'none', fontWeight: 'bold', fontSize: '1.1rem'
           }}>Launch App</Link>
-          <Link href="/policies" style={{
+          <a href="https://github.com/Legatia/Bastion#readme" target="_blank" rel="noopener noreferrer" style={{
             background: 'transparent', color: '#fff', padding: '1rem 2rem', borderRadius: '8px',
             textDecoration: 'none', fontWeight: 'bold', fontSize: '1.1rem', border: '1px solid rgba(255,255,255,0.2)'
-          }}>View Demo</Link>
+          }}>Documentation</a>
         </div>
 
         {/* Quick Start - Install Instructions */}
@@ -68,23 +68,23 @@ export default function Home() {
             </code>
           </div>
           <div style={{ fontSize: '0.9rem', color: '#888', textAlign: 'left' }}>
-            Then run <code style={{ background: '#000', padding: '2px 8px', borderRadius: '4px', color: '#10b981' }}>bastion init</code> and <code style={{ background: '#000', padding: '2px 8px', borderRadius: '4px', color: '#10b981' }}>bastion start</code>. Works with OpenClaw, LangChain, AutoGPT - any agent.
+            Then run <code style={{ background: '#000', padding: '2px 8px', borderRadius: '4px', color: '#10b981' }}>bastion login</code> to authenticate. Works with OpenClaw, LangChain, AutoGPT — any agent.
           </div>
         </div>
 
-        {/* Stats / Social Proof */}
+        {/* Stats */}
         <div style={{ display: 'flex', gap: '4rem', marginTop: '6rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '3rem' }}>
           <div>
-            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>$0</div>
-            <div style={{ color: '#666', fontSize: '0.9rem', textTransform: 'uppercase' }}>Losses Prevented</div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>9</div>
+            <div style={{ color: '#666', fontSize: '0.9rem', textTransform: 'uppercase' }}>Policy Types</div>
           </div>
           <div>
-            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>100%</div>
-            <div style={{ color: '#666', fontSize: '0.9rem', textTransform: 'uppercase' }}>Uptime</div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>30+</div>
+            <div style={{ color: '#666', fontSize: '0.9rem', textTransform: 'uppercase' }}>DLP Patterns</div>
           </div>
           <div>
-            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>&lt;10ms</div>
-            <div style={{ color: '#666', fontSize: '0.9rem', textTransform: 'uppercase' }}>Latency</div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>&lt;50ms</div>
+            <div style={{ color: '#666', fontSize: '0.9rem', textTransform: 'uppercase' }}>Policy Evaluation</div>
           </div>
         </div>
       </main>
@@ -93,19 +93,19 @@ export default function Home() {
       <section style={{ padding: '6rem 4rem', background: 'rgba(255,255,255,0.02)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
           <FeatureCard
-            icon={<Lock color="var(--primary)" />}
-            title="Dual Signature Security"
-            desc="Every action requires a cryptographic signature from your Agent and the Bastion Supervisor. Fully auditable."
-          />
-          <FeatureCard
-            icon={<Activity color="var(--secondary)" />}
+            icon={<Shield color="var(--primary)" />}
             title="Policy Engine"
-            desc="Define granular rules: Max Spend, Approved APIs, Velocity Limits. Enforced in real-time."
+            desc="9 policy types including DLP, rate limits, spending caps, and blocklists. 30 built-in patterns for secrets, API keys, and PII. Works via HTTP proxy — no code changes."
           />
           <FeatureCard
-            icon={<Zap color="var(--accent)" />}
-            title="Managed Infrastructure"
-            desc="No infrastructure limits. We handle the high-throughput message signing and audit logging."
+            icon={<Lock color="var(--secondary)" />}
+            title="On-chain Identity"
+            desc="ERC-8004 agent registration on Base. Verifiable on-chain identity with reputation. CDP-managed wallet for agent transactions."
+          />
+          <FeatureCard
+            icon={<Activity color="var(--accent)" />}
+            title="Behavioral Monitoring"
+            desc="Statistical baselines per agent. Anomaly detection on request volume, endpoints, and interaction partners. Health scores and drift alerts."
           />
         </div>
       </section>

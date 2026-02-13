@@ -138,20 +138,25 @@ export default function Billing() {
                         Everything bundled per tier. No per-module billing.
                     </p>
                     {isLoggedIn && tierStatus?.hasSubscription && (
-                        <button
-                            onClick={handlePortal}
-                            style={{
-                                marginTop: '1rem',
-                                background: 'transparent',
-                                border: '1px solid #444',
-                                color: '#ccc',
-                                padding: '0.5rem 1rem',
-                                borderRadius: '6px',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            Manage Subscription
-                        </button>
+                        <>
+                            <button
+                                onClick={handlePortal}
+                                style={{
+                                    marginTop: '1rem',
+                                    background: 'transparent',
+                                    border: '1px solid #444',
+                                    color: '#ccc',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Manage Subscription
+                            </button>
+                            <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.5rem' }}>
+                                Downgrade, cancel, or update payment method
+                            </p>
+                        </>
                     )}
                 </header>
 
@@ -219,7 +224,7 @@ export default function Billing() {
                                 {/* Limits */}
                                 <div style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: '1rem' }}>
                                     <div>{t.maxAgents === -1 ? 'Unlimited' : t.maxAgents} agents</div>
-                                    <div>{t.maxDailyChecks === -1 ? 'Unlimited' : t.maxDailyChecks.toLocaleString()} checks/day</div>
+                                    <div>{t.maxDailyChecks === -1 ? 'Unlimited' : t.maxDailyChecks.toLocaleString()} authorize checks/day</div>
                                 </div>
 
                                 {/* Features */}
@@ -304,6 +309,54 @@ export default function Billing() {
                             </div>
                         );
                     })}
+                </div>
+
+                {/* Feature Comparison Table */}
+                <div style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '16px',
+                    padding: '1.5rem',
+                    marginBottom: '3rem',
+                    overflowX: 'auto',
+                }}>
+                    <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem' }}>Feature Comparison</h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem', color: '#888' }}>Feature</th>
+                                {['FREE', 'STARTER', 'PRO', 'ENTERPRISE'].map(t => (
+                                    <th key={t} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', color: TIER_COLORS[t], fontWeight: 600 }}>{t}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {[
+                                { feature: 'Policy engine', values: [true, true, true, true] },
+                                { feature: 'Authorize checks/day', values: ['1,000', '50,000', 'Unlimited', 'Unlimited'] },
+                                { feature: 'ERC-8004 registration', values: [false, 'Daily', 'Real-time', 'Real-time'] },
+                                { feature: 'CDP Wallet', values: [false, true, true, true] },
+                                { feature: 'x402 support', values: [false, true, true, true] },
+                                { feature: 'MoltMind health score', values: [false, true, true, true] },
+                                { feature: 'MoltMind full monitoring', values: [false, false, true, true] },
+                            ].map((row, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <td style={{ padding: '0.75rem 1rem', color: '#ccc' }}>{row.feature}</td>
+                                    {row.values.map((val, j) => (
+                                        <td key={j} style={{ textAlign: 'center', padding: '0.75rem 0.5rem' }}>
+                                            {val === true ? (
+                                                <Check size={16} color="#22c55e" style={{ display: 'inline' }} />
+                                            ) : val === false ? (
+                                                <span style={{ color: '#444' }}>—</span>
+                                            ) : (
+                                                <span style={{ color: '#ccc', fontSize: '0.8rem' }}>{val}</span>
+                                            )}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
 
                 {/* OpenClaw Add-on */}

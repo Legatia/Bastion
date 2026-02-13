@@ -58,9 +58,9 @@ export default function Navbar() {
                 <Link href="/referrals" style={{ color: isActive('/referrals') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/referrals') ? '600' : '400' }}>
                     Referrals
                 </Link>
-                <Link href="/docs" style={{ color: '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '400' }}>
+                <a href="https://github.com/Legatia/Bastion#readme" target="_blank" rel="noopener noreferrer" style={{ color: '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '400' }}>
                     Docs
-                </Link>
+                </a>
                 <Link href="/billing" style={{ color: isActive('/billing') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/billing') ? '600' : '400' }}>
                     Billing
                 </Link>
