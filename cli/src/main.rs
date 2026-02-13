@@ -36,7 +36,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Login to Bastion (get API key)
+    /// [FREE] Login to Bastion (get API key)
     Login {
         /// API Key from Dashboard
         #[arg(long)]
@@ -46,29 +46,9 @@ enum Commands {
         #[arg(long, default_value = "dev")]
         env: String,
     },
-    /// Initialize agent protection in current directory
+    /// [FREE] Initialize agent protection in current directory
     Init,
-    /// Auto-configure an existing agent to use Bastion
-    Enable {
-        /// Agent type (openclaw/autogpt/langchain)
-        #[arg(long)]
-        agent: String,
-
-        /// Port for Bastion proxy
-        #[arg(long, default_value_t = 3000)]
-        port: u16,
-
-        /// Skip starting daemon (just configure)
-        #[arg(long)]
-        configure_only: bool,
-    },
-    /// Disable Bastion for a configured agent
-    Disable {
-        /// Agent type (openclaw/autogpt/langchain)
-        #[arg(long)]
-        agent: String,
-    },
-    /// Start the local supervisor proxy
+    /// [FREE] Start the local supervisor proxy
     Start {
         /// Port to listen on
         #[arg(long, default_value_t = 3000)]
@@ -82,11 +62,11 @@ enum Commands {
         #[arg(trailing_var_arg = true)]
         command: Vec<String>,
     },
-    /// Stop the running daemon
+    /// [FREE] Stop the running daemon
     Stop,
-    /// Check status of Bastion daemon
+    /// [FREE] Check status of Bastion daemon
     Status,
-    /// View daemon logs
+    /// [FREE] View daemon logs
     Logs {
         /// Number of lines to show (0 = all)
         #[arg(long, short = 'n', default_value_t = 50)]
@@ -96,15 +76,15 @@ enum Commands {
         #[arg(long, short = 'f')]
         follow: bool,
     },
-    /// Restart the daemon
+    /// [FREE] Restart the daemon
     Restart {
         /// Port to listen on
         #[arg(long, default_value_t = 3000)]
         port: u16,
     },
-    /// List all configured agents
+    /// [FREE] List all configured agents
     List,
-    /// Manage agent configuration
+    /// [FREE] Manage agent configuration
     Config {
         /// Agent name to update
         #[arg(long)]
@@ -122,7 +102,7 @@ enum Commands {
         #[arg(long)]
         enabled: Option<bool>,
     },
-    /// View audit log of agent actions
+    /// [FREE] View audit log of agent actions
     Audit {
         /// Number of entries to show
         #[arg(long, short = 'n', default_value_t = 20)]
@@ -136,13 +116,13 @@ enum Commands {
         #[arg(long)]
         blocked_only: bool,
     },
-    /// Show usage statistics
+    /// [FREE] Show usage statistics
     Stats {
         /// Time range (today/week/month/all)
         #[arg(long, default_value = "today")]
         range: String,
     },
-    /// Test policy enforcement (dry-run)
+    /// [FREE] Test policy enforcement (dry-run)
     Test {
         /// Action type to test
         #[arg(long)]
@@ -156,21 +136,143 @@ enum Commands {
         #[arg(long, default_value = "GET")]
         method: String,
     },
-    /// Validate configuration files
+    /// [FREE] Validate configuration files
     Validate,
-    /// Check connection to Bastion backend
+    /// [FREE] Check connection to Bastion backend
     Health,
-    /// Update Bastion CLI to the latest version
+    /// [FREE] Update Bastion CLI to the latest version
     Update,
-    /// Verify agent on-chain (ERC-8004)
+    /// [FREE] Manage security policies
+    Policy {
+        #[command(subcommand)]
+        action: PolicyAction,
+    },
+    /// [FREE] Delete an agent
+    Delete {
+        /// Agent ID to delete (uses current directory's agent if not specified)
+        #[arg(long)]
+        agent_id: Option<String>,
+    },
+    /// [STARTER+] Show agent CDP wallet address and balances
+    Wallet {
+        /// Agent ID (uses current directory's agent if not specified)
+        #[arg(long)]
+        agent_id: Option<String>,
+
+        /// Network to query balances on (base-sepolia or base)
+        #[arg(long, default_value = "base-sepolia")]
+        network: String,
+    },
+    /// [STARTER+] Verify agent on-chain (ERC-8004) — prepares tx for user wallet signing
     Verify {
         /// Chain to register on
         #[arg(long, default_value = "base-sepolia")]
         chain: String,
-        
+
         /// Agent ID to verify (uses current directory's agent if not specified)
         #[arg(long)]
         agent_id: Option<String>,
+    },
+    /// [STARTER+] MoltMind behavioral monitoring
+    Moltmind {
+        #[command(subcommand)]
+        action: MoltmindAction,
+
+        /// Agent ID (uses current directory's agent if not specified)
+        #[arg(long, global = true)]
+        agent_id: Option<String>,
+
+        /// Suppress output except errors and machine-readable data (for cron jobs)
+        #[arg(long, short = 'q', global = true)]
+        quiet: bool,
+    },
+    /// [STARTER+] Register agent on-chain (ERC-8004) via CDP wallet — automated, no signing needed
+    Register {
+        /// Chain to register on (base-sepolia or base)
+        #[arg(long, default_value = "base-sepolia")]
+        chain: String,
+
+        /// Agent ID to register (uses current directory's agent if not specified)
+        #[arg(long)]
+        agent_id: Option<String>,
+
+        /// Suppress output except errors (for cron jobs)
+        #[arg(long, short = 'q')]
+        quiet: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum MoltmindAction {
+    /// [STARTER+] Get agent health score
+    Health,
+    /// [PRO] List cognitive drift alerts
+    Alerts {
+        /// Max alerts to return
+        #[arg(long, short = 'n', default_value_t = 20)]
+        limit: usize,
+    },
+    /// [PRO] Acknowledge an alert by ID
+    Ack {
+        /// Alert ID to acknowledge
+        alert_id: String,
+    },
+    /// [PRO] Run on-demand drift analysis
+    Analyze {
+        /// Analysis window in hours
+        #[arg(long, default_value_t = 24)]
+        window: u32,
+    },
+    /// [PRO] Show behavioral baseline
+    Baseline,
+    /// [PRO] Force baseline recalculation
+    RefreshBaseline,
+}
+
+#[derive(Subcommand)]
+enum PolicyAction {
+    /// List all policies
+    List,
+    /// Show a specific policy
+    Get {
+        /// Policy ID
+        policy_id: String,
+    },
+    /// Create a new policy
+    Create {
+        /// Policy name
+        #[arg(long)]
+        name: String,
+
+        /// Policy type (SPENDING_LIMIT, RATE_LIMIT, PATTERN_MATCH, FILE_PROTECTION, DLP, CUSTOM_WEBHOOK, TIME_WINDOW, ALLOWLIST, BLOCKLIST)
+        #[arg(long, value_name = "TYPE")]
+        r#type: String,
+
+        /// Policy config as JSON string (e.g. '{"max_amount": 100}')
+        #[arg(long)]
+        config: String,
+
+        /// Description
+        #[arg(long)]
+        description: Option<String>,
+
+        /// Priority (0-100, higher = evaluated first)
+        #[arg(long, default_value_t = 0)]
+        priority: u32,
+    },
+    /// Enable or disable a policy
+    Toggle {
+        /// Policy ID
+        policy_id: String,
+
+        /// Enable (true) or disable (false)
+        #[arg(long)]
+        enabled: bool,
+    },
+    /// Delete a policy
+    Delete {
+        /// Policy ID
+        policy_id: String,
     },
 }
 
@@ -195,12 +297,6 @@ async fn main() {
         }
         Commands::Init => {
             handle_init(verbose).await;
-        }
-        Commands::Enable { agent, port, configure_only } => {
-            handle_enable(agent.clone(), *port, *configure_only, verbose).await;
-        }
-        Commands::Disable { agent } => {
-            handle_disable(agent.clone(), verbose).await;
         }
         Commands::Start { port, command, daemon } => {
             handle_start(*port, command, *daemon, verbose).await
@@ -255,8 +351,23 @@ async fn main() {
         Commands::Update => {
             handle_update(verbose).await;
         }
+        Commands::Policy { action } => {
+            handle_policy(action, verbose).await;
+        }
+        Commands::Delete { agent_id } => {
+            handle_delete_agent(agent_id.clone(), verbose).await;
+        }
+        Commands::Wallet { agent_id, network } => {
+            handle_wallet(agent_id.clone(), network.clone(), verbose).await;
+        }
         Commands::Verify { chain, agent_id } => {
             handle_verify(chain.clone(), agent_id.clone(), verbose).await;
+        }
+        Commands::Moltmind { action, agent_id, quiet } => {
+            handle_moltmind(action, agent_id.clone(), *quiet, verbose).await;
+        }
+        Commands::Register { chain, agent_id, quiet } => {
+            handle_register(chain.clone(), agent_id.clone(), *quiet, verbose).await;
         }
     }
 }
@@ -297,7 +408,7 @@ async fn handle_update(verbose: bool) {
 }
 
 async fn handle_login(provided_key: Option<String>, env: String, verbose: bool) {
-    println!("🛡️  Bastion Protocol Login\n");
+    println!("🛡️  Bastion Protocol Setup\n");
 
     if verbose {
         println!("Environment: {}", env);
@@ -306,14 +417,19 @@ async fn handle_login(provided_key: Option<String>, env: String, verbose: bool) 
     let api_key = if let Some(k) = provided_key {
         k
     } else {
-        println!("Please enter your API Key from the Dashboard.");
-        println!("(You can find it at https://bastion.legatia.solutions/profile after logging in)\n");
+        println!("Enter your API Key from the Dashboard.");
+        println!("(Get one at https://bastion.legatia.solutions/profile)\n");
 
-        // Use password input so it masks the key
-        Password::with_theme(&ColorfulTheme::default())
+        match Password::with_theme(&ColorfulTheme::default())
             .with_prompt("API Key")
             .interact()
-            .unwrap()
+        {
+            Ok(k) => k,
+            Err(e) => {
+                eprintln!("❌ Failed to read input: {}", e);
+                std::process::exit(1);
+            }
+        }
     };
 
     // Validate key format
@@ -326,51 +442,121 @@ async fn handle_login(provided_key: Option<String>, env: String, verbose: bool) 
         println!("⚠️  Warning: API Key doesn't start with 'bst_'. This may be invalid.");
     }
 
-    println!("\n🔄 Authenticating...");
-
-    // Save to config file
-    let config_path = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join("config.json");
-
-    std::fs::create_dir_all(config_path.parent().unwrap()).ok();
-
     // Determine backend URL based on environment
     let backend_url = match env.as_str() {
         "prod" | "production" => "https://bastion-gamma.vercel.app/v1",
-        "staging" => "https://bastion-gamma.vercel.app/v1", // Use production for now as staging isn't ready
+        "staging" => "https://bastion-gamma.vercel.app/v1",
         _ => "https://bastion-gamma.vercel.app/v1",
     };
 
-    // We can infer email from key or just leave it blank for now
+    // Validate key against backend
+    println!("🔄 Verifying API key...");
+    let client = reqwest::Client::new();
+    let email = match client
+        .get(format!("{}/usage", backend_url))
+        .header("X-API-Key", &api_key)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(data) => {
+                    let tier = data["tier"].as_str().unwrap_or("FREE");
+                    println!("✅ Authenticated! Tier: {}", tier);
+                    data["email"].as_str().unwrap_or("user@bastion.ai").to_string()
+                }
+                Err(_) => {
+                    println!("✅ API key accepted.");
+                    "user@bastion.ai".to_string()
+                }
+            }
+        }
+        Ok(resp) if resp.status().as_u16() == 401 => {
+            println!("❌ Invalid API key. Check your key at https://bastion.legatia.solutions/profile");
+            return;
+        }
+        Ok(_) | Err(_) => {
+            println!("⚠️  Could not verify key (backend unreachable). Saving anyway.");
+            "user@bastion.ai".to_string()
+        }
+    };
+
+    // Save config
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => {
+            eprintln!("❌ Cannot determine home directory.");
+            std::process::exit(1);
+        }
+    };
+    let config_dir = home.join(".bastion");
+    let config_path = config_dir.join("config.json");
+
+    if let Err(e) = std::fs::create_dir_all(&config_dir) {
+        eprintln!("❌ Failed to create config directory: {}", e);
+        std::process::exit(1);
+    }
+
     let config = serde_json::json!({
-        "email": "user@bastion.ai", // Placeholder
+        "email": email,
         "api_key": api_key,
         "backend_url": backend_url,
         "environment": env
     });
 
-    std::fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    let config_str = serde_json::to_string_pretty(&config).expect("failed to serialize config");
+    if let Err(e) = std::fs::write(&config_path, &config_str) {
+        eprintln!("❌ Failed to write config: {}", e);
+        std::process::exit(1);
+    }
 
-    println!("✅ Login successful!");
-    println!("\nYour API Key: {}...", &api_key[0..5]);
-    println!("Environment: {}", env);
-    println!("Backend URL: {}", backend_url);
+    // Set config file permissions (owner read/write only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o600)).ok();
+    }
+
     if verbose {
         println!("Config saved to: {:?}", config_path);
     }
-    println!("\nNext step: Run `bastion init` in your agent directory");
+
+    // ── Step 2: Auto-chain into init if no agent exists ──
+    if !std::path::Path::new(".bastion-agent.json").exists() {
+        println!("\n── Agent Setup ──\n");
+
+        let setup_agent = Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt("Register an agent in this directory?")
+            .default(true)
+            .interact()
+            .unwrap_or(true);
+
+        if setup_agent {
+            handle_init(verbose).await;
+        } else {
+            println!("\nSkipped. Run `bastion init` later when you're in your agent's directory.");
+            return;
+        }
+    } else {
+        println!("\n✓ Agent already configured in this directory.");
+    }
+
+    println!("\n✅ Setup complete! Run `bastion start` to launch the proxy.");
+    println!("   Or: bastion start -- python agent.py");
 }
 
 async fn handle_init(verbose: bool) {
     println!("🛡️  Bastion Protocol Setup\n");
 
     // Check if logged in
-    let config_path = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join("config.json");
+    let config_path = match dirs::home_dir() {
+        Some(h) => h.join(".bastion").join("config.json"),
+        None => {
+            eprintln!("❌ Cannot determine home directory.");
+            std::process::exit(1);
+        }
+    };
 
     if !config_path.exists() {
         println!("❌ Not logged in. Run `bastion login` first.");
@@ -384,7 +570,7 @@ async fn handle_init(verbose: bool) {
             .with_prompt("Do you want to overwrite it?")
             .default(false)
             .interact()
-            .unwrap();
+            .unwrap_or(false);
 
         if !overwrite {
             println!("Cancelled.");
@@ -392,29 +578,41 @@ async fn handle_init(verbose: bool) {
         }
     }
 
-    let config: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+    let config: serde_json::Value = match std::fs::read_to_string(&config_path) {
+        Ok(contents) => match serde_json::from_str(&contents) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("❌ Config file is corrupt: {}", e);
+                eprintln!("   Delete ~/.bastion/config.json and run `bastion login` again.");
+                std::process::exit(1);
+            }
+        },
+        Err(e) => {
+            eprintln!("❌ Cannot read config: {}", e);
+            std::process::exit(1);
+        }
+    };
 
-    println!("Logged in as: {}\n", config["email"].as_str().unwrap());
+    println!("Logged in as: {}\n", config["email"].as_str().unwrap_or("unknown"));
 
     // Interactive setup
     let name: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Agent name")
         .default("my-agent".into())
         .interact_text()
-        .unwrap();
+        .unwrap_or_else(|_| "my-agent".into());
 
     let language: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Language")
         .default("python".into())
         .interact_text()
-        .unwrap();
+        .unwrap_or_else(|_| "python".into());
 
     let framework: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Framework (langchain/autogpt/custom)")
         .default("custom".into())
         .interact_text()
-        .unwrap();
+        .unwrap_or_else(|_| "custom".into());
 
     println!("\n🔄 Registering agent with Bastion backend...");
 
@@ -490,224 +688,70 @@ async fn handle_init(verbose: bool) {
         "created_at": chrono::Utc::now().to_rfc3339(),
     });
 
-    std::fs::write(
-        ".bastion-agent.json",
-        serde_json::to_string_pretty(&agent_config).unwrap(),
-    )
-    .unwrap();
-
-    println!("✅ Agent created!");
-    println!("\nAgent ID: {}", agent_id);
-    if verbose {
-        println!("Config saved to: .bastion-agent.json");
-    }
-    println!("\nNext step: Run your agent with Bastion protection:");
-    println!("  bastion start -- python agent.py");
-    println!("\nOr route your existing bot by setting these environment variables:");
-    println!("  export HTTP_PROXY=http://localhost:3000");
-    println!("  export HTTPS_PROXY=http://localhost:3000");
-}
-
-async fn handle_enable(agent_type: String, port: u16, configure_only: bool, verbose: bool) {
-    println!("🛡️  Bastion Auto-Configuration\n");
-    
-    // Check if logged in
-    let config_path = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join("config.json");
-
-    if !config_path.exists() {
-        println!("❌ Not logged in. Run `bastion login` first.");
-        std::process::exit(1);
-    }
-
-    match agent_type.to_lowercase().as_str() {
-        "openclaw" => configure_openclaw(port, configure_only, verbose).await,
-        "autogpt" => configure_autogpt(port, configure_only, verbose).await,
-        "langchain" => configure_langchain(port, configure_only, verbose).await,
-        _ => {
-            println!("❌ Unsupported agent type: {}", agent_type);
-            println!("\nSupported agents:");
-            println!("  - openclaw");
-            println!("  - autogpt");
-            println!("  - langchain");
+    match serde_json::to_string_pretty(&agent_config) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(".bastion-agent.json", json) {
+                eprintln!("❌ Failed to write agent config: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to serialize agent config: {}", e);
             std::process::exit(1);
         }
     }
-}
 
-async fn configure_openclaw(port: u16, configure_only: bool, verbose: bool) {
-    println!("🦞 Configuring OpenClaw...\n");
-    
-    let openclaw_config_path = dirs::home_dir()
-        .unwrap()
-        .join(".openclaw")
-        .join("openclaw.json");
-    
-    if !openclaw_config_path.exists() {
-        println!("❌ OpenClaw config not found at: {:?}", openclaw_config_path);
-        println!("\nMake sure OpenClaw is installed and initialized.");
-        println!("Run `openclaw` first to create the config file.");
-        std::process::exit(1);
-    }
-
-    // Read existing config
-    let config_str = std::fs::read_to_string(&openclaw_config_path)
-        .expect("Failed to read OpenClaw config");
-    let mut config: serde_json::Value = serde_json::from_str(&config_str)
-        .expect("Failed to parse OpenClaw config");
-
-    // Backup original config
-    let backup_path = openclaw_config_path.with_extension("json.backup");
-    std::fs::copy(&openclaw_config_path, &backup_path).ok();
+    println!("✅ Agent created!");
+    println!("   ID: {}", agent_id);
     if verbose {
-        println!("📦 Backed up original config to: {:?}", backup_path);
-    }
-
-    // Add/update gateway configuration
-    if config.get("gateway").is_none() {
-        config["gateway"] = serde_json::json!({});
-    }
-    
-    config["gateway"]["trustedProxies"] = serde_json::json!(["127.0.0.1"]);
-    config["gateway"]["httpProxy"] = serde_json::json!(format!("http://localhost:{}", port));
-    config["gateway"]["httpsProxy"] = serde_json::json!(format!("http://localhost:{}", port));
-    
-    // Add bastion metadata
-    config["bastion"] = serde_json::json!({
-        "enabled": true,
-        "port": port,
-        "configured_at": chrono::Utc::now().to_rfc3339()
-    });
-
-    // Write updated config
-    std::fs::write(
-        &openclaw_config_path,
-        serde_json::to_string_pretty(&config).unwrap()
-    ).expect("Failed to write OpenClaw config");
-
-    println!("✅ OpenClaw configured!");
-    println!("   Proxy: http://localhost:{}", port);
-    println!("   Config: {:?}", openclaw_config_path);
-    
-    if !configure_only {
-        println!("\n🚀 Starting Bastion proxy...\n");
-        
-        // Start daemon
-        let bastion_dir = dirs::home_dir().unwrap().join(".bastion");
-        let pid_file = bastion_dir.join("openclaw.pid");
-        
-        // Use current executable to start daemon
-        let current_exe = std::env::current_exe().unwrap();
-        let mut cmd = std::process::Command::new(&current_exe);
-        cmd.args(&["start", "--daemon", "--port", &port.to_string()]);
-        
-        match cmd.spawn() {
-            Ok(_) => {
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                println!("✅ Bastion proxy started in background");
-                println!("\n📌 Status:");
-                println!("   • Proxy running on port {}", port);
-                println!("   • PID file: {:?}", pid_file);
-                println!("\n🎯 Next step: Run OpenClaw normally");
-                println!("   openclaw");
-                println!("\nAll API calls will be automatically monitored! 🛡️");
-            }
-            Err(e) => {
-                println!("❌ Failed to start daemon: {}", e);
-                println!("\nYou can start it manually with:");
-                println!("   bastion start -d");
-            }
-        }
-    } else {
-        println!("\n⏭️  Skipped starting daemon (--configure-only)");
-        println!("\nTo start Bastion proxy:");
-        println!("   bastion start -d --port {}", port);
-    }
-}
-
-async fn configure_autogpt(port: u16, _configure_only: bool, _verbose: bool) {
-    println!("🤖 Auto-GPT support coming soon!");
-    println!("\nFor now, you can:");
-    println!("1. Set environment variables:");
-    println!("   export HTTP_PROXY=http://localhost:{}", port);
-    println!("   export HTTPS_PROXY=http://localhost:{}", port);
-    println!("2. Run: bastion start -d");
-    println!("3. Run: autogpt");
-}
-
-async fn configure_langchain(port: u16, _configure_only: bool, _verbose: bool) {
-    println!("🦜 LangChain support coming soon!");
-    println!("\nFor now, install our middleware:");
-    println!("   pip install bastion-langchain");
-    println!("\nThen in your code:");
-    println!("   from bastion_langchain import BastionMiddleware");
-    println!("   middleware = BastionMiddleware('http://localhost:{}') ", port);
-}
-
-async fn handle_disable(agent_type: String, _verbose: bool) {
-    println!("🛑 Disabling Bastion for {}\n", agent_type);
-    
-    match agent_type.to_lowercase().as_str() {
-        "openclaw" => {
-            let openclaw_config_path = dirs::home_dir()
-                .unwrap()
-                .join(".openclaw")
-                .join("openclaw.json");
-            
-            if !openclaw_config_path.exists() {
-                println!("❌ OpenClaw config not found");
-                return;
-            }
-
-            // Read config
-            let config_str = std::fs::read_to_string(&openclaw_config_path)
-                .expect("Failed to read OpenClaw config");
-            let mut config: serde_json::Value = serde_json::from_str(&config_str)
-                .expect("Failed to parse OpenClaw config");
-
-            // Remove Bastion config
-            if let Some(gateway) = config.get_mut("gateway") {
-                gateway.as_object_mut().map(|g| {
-                    g.remove("httpProxy");
-                    g.remove("httpsProxy");
-                    g.remove("trustedProxies");
-                });
-            }
-            config.as_object_mut().map(|c| c.remove("bastion"));
-
-            // Write back
-            std::fs::write(
-                &openclaw_config_path,
-                serde_json::to_string_pretty(&config).unwrap()
-            ).expect("Failed to write config");
-
-            println!("✅ Bastion disabled for OpenClaw");
-            println!("   Config cleaned: {:?}", openclaw_config_path);
-            
-            // Try to restore backup
-            let backup_path = openclaw_config_path.with_extension("json.backup");
-            if backup_path.exists() {
-                println!("   Backup available: {:?}", backup_path);
-            }
-        }
-        _ => {
-            println!("❌ Unsupported agent type: {}", agent_type);
-            println!("\nTo disable Bastion:");
-            println!("1. Stop the daemon: bastion stop");
-            println!("2. Manually edit your agent's config");
-        }
+        println!("   Config saved to: .bastion-agent.json");
     }
 }
 
 async fn handle_start(port: u16, command: &[String], daemon: bool, verbose: bool) {
-    // Load config first to get agent ID for PID file naming
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => {
+            eprintln!("❌ Cannot determine home directory.");
+            std::process::exit(1);
+        }
+    };
+    let config_path = home.join(".bastion").join("config.json");
+
+    // If not logged in, chain into login (which chains into init → start)
+    if !config_path.exists() {
+        println!("🛡️  First time? Let's get you set up.\n");
+        handle_login(None, "prod".to_string(), verbose).await;
+        return; // login already chains into start
+    }
+
+    // If logged in but no agent in this directory, chain into init
+    if !std::path::Path::new(".bastion-agent.json").exists() {
+        println!("⚠️  No agent configured in this directory.\n");
+        let setup = Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt("Register an agent here?")
+            .default(true)
+            .interact()
+            .unwrap_or(true);
+
+        if setup {
+            handle_init(verbose).await;
+            println!();
+        } else {
+            println!("Run `bastion init` first, or `bastion start` from a directory with .bastion-agent.json");
+            return;
+        }
+    }
+
+    // Load config (guaranteed to exist now)
     let config = load_config();
     let agent_id = config.agent_id.clone().unwrap_or_else(|| "default".to_string());
 
     // Create agent-specific PID and log files
-    let bastion_dir = dirs::home_dir().unwrap().join(".bastion");
+    let bastion_dir = dirs::home_dir().unwrap_or_else(|| {
+        eprintln!("❌ Cannot determine home directory.");
+        std::process::exit(1);
+    }).join(".bastion");
     std::fs::create_dir_all(&bastion_dir).ok();
 
     let pid_file = bastion_dir.join(format!("{}.pid", agent_id));
@@ -738,13 +782,30 @@ async fn handle_start(port: u16, command: &[String], daemon: bool, verbose: bool
         // Rotate logs before starting
         rotate_log_files(&log_file, &err_file, verbose);
 
-        let stdout = File::create(&log_file).unwrap();
-        let stderr = File::create(&err_file).unwrap();
+        let stdout = match File::create(&log_file) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("❌ Failed to create log file: {}", e);
+                std::process::exit(1);
+            }
+        };
+        let stderr = match File::create(&err_file) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("❌ Failed to create error log file: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+        let cwd = std::env::current_dir().unwrap_or_else(|e| {
+            eprintln!("❌ Cannot determine current directory: {}", e);
+            std::process::exit(1);
+        });
 
         let daemonize = Daemonize::new()
             .pid_file(&pid_file)
             .chown_pid_file(true)
-            .working_directory(std::env::current_dir().unwrap())
+            .working_directory(cwd)
             .stdout(stdout)
             .stderr(stderr);
 
@@ -809,13 +870,23 @@ async fn handle_start(port: u16, command: &[String], daemon: bool, verbose: bool
         tokio::spawn(start_agent(command.to_vec(), port, verbose));
     }
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("❌ Failed to bind to port {}: {}", port, e);
+            eprintln!("   Is another process already using this port?");
+            std::process::exit(1);
+        }
+    };
 
     // Serve with graceful shutdown
-    axum::serve(listener, app)
+    if let Err(e) = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal)
         .await
-        .unwrap();
+    {
+        eprintln!("❌ Server error: {}", e);
+        std::process::exit(1);
+    }
 
     // Clean up PID file on shutdown
     if daemon {
@@ -856,7 +927,8 @@ async fn proxy_handler(
                     }
                 }
                 Err(e) => {
-                    eprintln!("   ⚠️  Policy check failed: {}", e);
+                    eprintln!("   🛑 HTTPS policy check failed (fail-closed): {}", e);
+                    return (StatusCode::SERVICE_UNAVAILABLE, "Policy check unavailable — connection blocked").into_response();
                 }
             }
 
@@ -921,8 +993,9 @@ async fn proxy_handler(
             }
         }
         Err(e) => {
-             // Fail open or closed based on preference. Here fail open but log.
-             eprintln!("   ⚠️  Policy check failed: {}", e);
+             // Fail closed — block traffic when policy check fails
+             eprintln!("   🛑 Policy check failed (fail-closed): {}", e);
+             return (StatusCode::SERVICE_UNAVAILABLE, "Policy check unavailable — request blocked").into_response();
         }
     }
 
@@ -1008,13 +1081,13 @@ async fn handle_health(verbose: bool) {
 
     println!("🔍 Checking Bastion backend...");
     if verbose {
-        println!("   API Key: {}...", &config.api_key[0..5]);
+        println!("   API Key: {}...", config.api_key.get(..5).unwrap_or(&config.api_key));
     }
     println!("   URL: {}\n", config.backend_url);
 
     let client = reqwest::Client::new();
     match client
-        .get(format!("{}/../../health", config.backend_url))
+        .get(format!("{}/health", config.backend_url.trim_end_matches("/v1")))
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -1037,12 +1110,13 @@ async fn handle_health(verbose: bool) {
         Err(e) => {
             println!("❌ Cannot reach backend: {}", e);
             println!("\nTroubleshooting:");
-            println!("  1. Make sure the backend is running:");
-            println!("     cd backend && npm run dev");
-            println!("  2. Check your network connection");
-            println!("  3. Verify the backend URL in your config");
+            println!("  1. Check your network connection");
+            println!("  2. Verify the backend URL in your config");
+            println!("  3. Check service status at https://bastion.legatia.solutions");
             if verbose {
-                println!("\nConfig path: {:?}", dirs::home_dir().unwrap().join(".bastion/config.json"));
+                if let Some(home) = dirs::home_dir() {
+                    println!("\nConfig path: {:?}", home.join(".bastion/config.json"));
+                }
             }
         }
     }
@@ -1097,7 +1171,13 @@ async fn handle_verify(chain: String, agent_id_arg: Option<String>, verbose: boo
                 println!("   https://bastion.legatia.solutions/agents");
                 println!("\n   Use the \"Get Verified\" button on your agent card.");
                 
-            } else if response.status() == 400 {
+            } else if response.status().as_u16() == 403 {
+                let body: serde_json::Value = response.json().await.unwrap_or_default();
+                eprintln!("❌ {}", body["reason"].as_str()
+                    .unwrap_or("Upgrade required — ERC-8004 verification requires STARTER tier or higher."));
+                eprintln!("   Upgrade at: https://bastion.legatia.solutions/billing");
+                std::process::exit(1);
+            } else if response.status().as_u16() == 400 {
                 let body: serde_json::Value = response.json().await.unwrap_or_default();
                 if body["error"].as_str() == Some("Already verified") {
                     println!("✅ Agent is already verified on-chain!");
@@ -1123,19 +1203,695 @@ async fn handle_verify(chain: String, agent_id_arg: Option<String>, verbose: boo
     }
 }
 
+async fn handle_moltmind(action: &MoltmindAction, agent_id_arg: Option<String>, quiet: bool, verbose: bool) {
+    let config = load_config();
+
+    let agent_id = if let Some(id) = agent_id_arg {
+        id
+    } else if let Some(id) = config.agent_id.clone() {
+        id
+    } else {
+        eprintln!("Error: No agent ID found. Run `bastion init` first or pass --agent-id");
+        std::process::exit(1);
+    };
+
+    let client = reqwest::Client::new();
+
+    match action {
+        MoltmindAction::Health => {
+            if !quiet { println!("Fetching health score for {}...", agent_id); }
+
+            let resp = client
+                .get(format!("{}/agents/{}/health", config.backend_url, agent_id))
+                .header("X-API-Key", &config.api_key)
+                .timeout(std::time::Duration::from_secs(15))
+                .send()
+                .await;
+
+            match handle_api_response(resp, quiet).await {
+                Some(body) => {
+                    if quiet {
+                        // Machine-readable: score only
+                        println!("{}", body["score"].as_f64().unwrap_or(0.0));
+                    } else {
+                        let score = body["score"].as_f64().unwrap_or(0.0);
+                        let status = body["status"].as_str().unwrap_or("unknown");
+                        let icon = if score >= 80.0 { "green" } else if score >= 50.0 { "yellow" } else { "red" };
+
+                        println!("\nMoltMind Health Score: {:.0}/100 [{}]", score, icon);
+                        println!("  Status: {}", status);
+
+                        if let Some(ic) = body["identityCoherence"].as_f64() {
+                            println!("  Identity Coherence:   {:.0}", ic);
+                        }
+                        if let Some(bs) = body["behavioralStability"].as_f64() {
+                            println!("  Behavioral Stability: {:.0}", bs);
+                        }
+                        if let Some(ih) = body["interactionHealth"].as_f64() {
+                            println!("  Interaction Health:   {:.0}", ih);
+                        }
+
+                        if let Some(flags) = body["flags"].as_array() {
+                            if !flags.is_empty() {
+                                println!("\n  Flags:");
+                                for flag in flags {
+                                    println!("    - {}", flag.as_str().unwrap_or("unknown"));
+                                }
+                            }
+                        }
+                    }
+
+                    if verbose {
+                        println!("\n{}", serde_json::to_string_pretty(&body).unwrap());
+                    }
+                }
+                None => {}
+            }
+        }
+
+        MoltmindAction::Alerts { limit } => {
+            if !quiet { println!("Fetching alerts for {}...", agent_id); }
+
+            let resp = client
+                .get(format!("{}/agents/{}/alerts?limit={}", config.backend_url, agent_id, limit))
+                .header("X-API-Key", &config.api_key)
+                .timeout(std::time::Duration::from_secs(10))
+                .send()
+                .await;
+
+            match handle_api_response(resp, quiet).await {
+                Some(body) => {
+                    if let Some(alerts) = body["alerts"].as_array() {
+                        if quiet {
+                            // Machine-readable: one JSON line per alert
+                            for alert in alerts {
+                                println!("{}", serde_json::to_string(alert).unwrap());
+                            }
+                        } else if alerts.is_empty() {
+                            println!("\nNo alerts. Agent is operating within normal parameters.");
+                        } else {
+                            println!("\n{} alert(s):\n", alerts.len());
+                            for alert in alerts {
+                                let severity = alert["severity"].as_str().unwrap_or("unknown");
+                                let alert_type = alert["type"].as_str().unwrap_or("unknown");
+                                let message = alert["message"].as_str().unwrap_or("");
+                                let acknowledged = alert["acknowledged"].as_bool().unwrap_or(false);
+                                let id = alert["id"].as_str().unwrap_or("");
+
+                                let severity_icon = match severity {
+                                    "critical" => "!!!",
+                                    "high" => "!! ",
+                                    "medium" => "!  ",
+                                    _ => "   ",
+                                };
+
+                                let ack = if acknowledged { " [ack]" } else { "" };
+                                println!("  [{}] {} — {}{}", severity_icon, alert_type, message, ack);
+
+                                if verbose {
+                                    println!("        ID: {}", id);
+                                    if let Some(ts) = alert["createdAt"].as_str() {
+                                        println!("        Time: {}", ts);
+                                    }
+                                    if let Some(z) = alert["zScore"].as_f64() {
+                                        println!("        Z-score: {:.2}", z);
+                                    }
+                                }
+                            }
+                            println!("\nAcknowledge with: bastion moltmind ack <alert-id>");
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+
+        MoltmindAction::Ack { alert_id } => {
+            if !quiet { println!("Acknowledging alert {}...", alert_id); }
+
+            let resp = client
+                .post(format!("{}/agents/{}/alerts/{}/acknowledge", config.backend_url, agent_id, alert_id))
+                .header("X-API-Key", &config.api_key)
+                .timeout(std::time::Duration::from_secs(10))
+                .send()
+                .await;
+
+            match handle_api_response(resp, quiet).await {
+                Some(_) => {
+                    if !quiet { println!("Alert acknowledged."); }
+                }
+                None => {}
+            }
+        }
+
+        MoltmindAction::Analyze { window } => {
+            if !quiet { println!("Running drift analysis ({}-hour window) for {}...", window, agent_id); }
+
+            let resp = client
+                .post(format!("{}/agents/{}/analyze", config.backend_url, agent_id))
+                .header("X-API-Key", &config.api_key)
+                .json(&serde_json::json!({ "windowHours": window }))
+                .timeout(std::time::Duration::from_secs(30))
+                .send()
+                .await;
+
+            match handle_api_response(resp, quiet).await {
+                Some(body) => {
+                    if quiet {
+                        // Machine-readable: full JSON
+                        println!("{}", serde_json::to_string(&body).unwrap());
+                    } else {
+                        let score = body["overallScore"].as_f64().unwrap_or(0.0);
+                        println!("\nDrift Analysis Complete");
+                        println!("  Overall Score: {:.0}/100", score);
+
+                        if let Some(metrics) = body["metrics"].as_object() {
+                            println!("\n  Metrics:");
+                            for (key, val) in metrics {
+                                if let Some(z) = val["zScore"].as_f64() {
+                                    let severity = val["severity"].as_str().unwrap_or("none");
+                                    println!("    {}: z={:.2} [{}]", key, z, severity);
+                                }
+                            }
+                        }
+
+                        if let Some(alerts) = body["alerts"].as_array() {
+                            if !alerts.is_empty() {
+                                println!("\n  New Alerts ({}):", alerts.len());
+                                for a in alerts {
+                                    println!("    - [{}] {}: {}",
+                                        a["severity"].as_str().unwrap_or("?"),
+                                        a["type"].as_str().unwrap_or("?"),
+                                        a["message"].as_str().unwrap_or(""),
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    if verbose {
+                        println!("\n{}", serde_json::to_string_pretty(&body).unwrap());
+                    }
+                }
+                None => {}
+            }
+        }
+
+        MoltmindAction::Baseline => {
+            if !quiet { println!("Fetching baseline for {}...", agent_id); }
+
+            let resp = client
+                .get(format!("{}/agents/{}/baseline", config.backend_url, agent_id))
+                .header("X-API-Key", &config.api_key)
+                .timeout(std::time::Duration::from_secs(10))
+                .send()
+                .await;
+
+            match handle_api_response(resp, quiet).await {
+                Some(body) => {
+                    let status = body["status"].as_str().unwrap_or("unknown");
+
+                    if quiet {
+                        println!("{}", serde_json::to_string(&body).unwrap());
+                    } else if status == "insufficient_data" {
+                        println!("\nInsufficient data — need at least 50 events to build a baseline.");
+                    } else if status == "pending" {
+                        println!("\nBaseline is being calculated. Check back soon.");
+                    } else if let Some(baseline) = body.get("baseline") {
+                        println!("\nBaseline (status: {}):", status);
+                        if let Some(b) = baseline.as_object() {
+                            for (key, val) in b {
+                                if let Some(mean) = val["mean"].as_f64() {
+                                    let stddev = val["stddev"].as_f64().unwrap_or(0.0);
+                                    println!("  {}: mean={:.2}, stddev={:.2}", key, mean, stddev);
+                                } else {
+                                    println!("  {}: {}", key, val);
+                                }
+                            }
+                        } else {
+                            println!("{}", serde_json::to_string_pretty(baseline).unwrap());
+                        }
+                    } else {
+                        println!("\nNo baseline available.");
+                    }
+
+                    if verbose {
+                        println!("\n{}", serde_json::to_string_pretty(&body).unwrap());
+                    }
+                }
+                None => {}
+            }
+        }
+
+        MoltmindAction::RefreshBaseline => {
+            if !quiet { println!("Recalculating baseline for {}...", agent_id); }
+
+            let resp = client
+                .post(format!("{}/agents/{}/baseline/refresh", config.backend_url, agent_id))
+                .header("X-API-Key", &config.api_key)
+                .timeout(std::time::Duration::from_secs(30))
+                .send()
+                .await;
+
+            match handle_api_response(resp, quiet).await {
+                Some(body) => {
+                    if quiet {
+                        println!("{}", serde_json::to_string(&body).unwrap());
+                    } else if body["success"].as_bool() == Some(true) {
+                        println!("Baseline recalculated.");
+                    } else {
+                        println!("Failed: {}", body["message"].as_str().unwrap_or("Unknown error"));
+                    }
+                }
+                None => {}
+            }
+        }
+    }
+}
+
+/// Shared response handler for MoltMind API calls.
+/// Returns parsed JSON body on success, None on error (after printing).
+async fn handle_api_response(
+    resp: Result<reqwest::Response, reqwest::Error>,
+    _quiet: bool,
+) -> Option<serde_json::Value> {
+    match resp {
+        Ok(response) => {
+            let status = response.status();
+            match response.json::<serde_json::Value>().await {
+                Ok(body) => {
+                    if status.is_success() {
+                        Some(body)
+                    } else if status.as_u16() == 403 {
+                        eprintln!("Error: {}", body["reason"].as_str()
+                            .unwrap_or("Upgrade required — this feature requires a higher tier."));
+                        std::process::exit(1);
+                    } else if status.as_u16() == 404 {
+                        eprintln!("Error: {}", body["error"].as_str().unwrap_or("Not found"));
+                        std::process::exit(1);
+                    } else {
+                        eprintln!("Error ({}): {}", status, body["error"].as_str().unwrap_or("Unknown error"));
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error: Failed to parse response: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Error: Failed to reach backend: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn handle_register(chain: String, agent_id_arg: Option<String>, quiet: bool, verbose: bool) {
+    let config = load_config();
+
+    let agent_id = if let Some(id) = agent_id_arg {
+        id
+    } else if let Some(id) = config.agent_id.clone() {
+        id
+    } else {
+        eprintln!("Error: No agent ID found. Run `bastion init` first or pass --agent-id");
+        std::process::exit(1);
+    };
+
+    if !quiet {
+        println!("Registering agent on-chain (ERC-8004) via CDP wallet...");
+        println!("  Chain: {}", chain);
+        println!("  Agent: {}", agent_id);
+    }
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/agents/{}/register", config.backend_url, agent_id))
+        .header("X-API-Key", &config.api_key)
+        .json(&serde_json::json!({ "chain": chain }))
+        .timeout(std::time::Duration::from_secs(60)) // Registration waits for mining
+        .send()
+        .await;
+
+    match resp {
+        Ok(response) => {
+            let status = response.status();
+            match response.json::<serde_json::Value>().await {
+                Ok(body) => {
+                    if status.is_success() {
+                        if quiet {
+                            // Machine-readable output for cron: just the on-chain ID
+                            if let Some(onchain_id) = body["agent"]["onchainId"].as_i64() {
+                                println!("{}", onchain_id);
+                            }
+                        } else {
+                            println!("\nRegistered on-chain!");
+                            println!("  On-chain ID: #{}", body["agent"]["onchainId"]);
+                            println!("  Chain: {}", body["agent"]["registryChain"].as_str().unwrap_or(&chain));
+                            println!("  Owner: {}", body["agent"]["ownerAddress"].as_str().unwrap_or("unknown"));
+                            println!("  Wallet: {}", body["agent"]["walletAddress"].as_str().unwrap_or("unknown"));
+                        }
+                        if verbose {
+                            println!("\nFull response:");
+                            println!("{}", serde_json::to_string_pretty(&body).unwrap());
+                        }
+                    } else if status.as_u16() == 400 {
+                        if body["error"].as_str() == Some("Already registered") {
+                            if !quiet {
+                                println!("Agent is already registered on-chain.");
+                                if let Some(identity) = body.get("identity") {
+                                    println!("  On-chain ID: #{}", identity["onchainId"]);
+                                    println!("  Chain: {}", identity["registryChain"].as_str().unwrap_or("unknown"));
+                                }
+                            }
+                            // Exit 0 for cron — already registered is not an error
+                        } else {
+                            eprintln!("Error: {}", body["message"].as_str().unwrap_or("Bad request"));
+                            std::process::exit(1);
+                        }
+                    } else if status.as_u16() == 403 {
+                        eprintln!("Error: {}", body["reason"].as_str().unwrap_or("Upgrade required — ERC-8004 registration requires STARTER tier or higher."));
+                        std::process::exit(1);
+                    } else {
+                        eprintln!("Error ({}): {}", status, body["message"].as_str().unwrap_or("Unknown error"));
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error: Failed to parse response: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Error: Failed to reach backend: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+// ============================================================================
+// Policy, Delete Agent, Wallet Handlers
+// ============================================================================
+
+async fn handle_policy(action: &PolicyAction, verbose: bool) {
+    let config = load_config();
+    let client = reqwest::Client::new();
+
+    match action {
+        PolicyAction::List => {
+            println!("📋 Policies\n");
+
+            let resp = client
+                .get(format!("{}/policies", config.backend_url))
+                .header("X-API-Key", &config.api_key)
+                .timeout(std::time::Duration::from_secs(10))
+                .send()
+                .await;
+
+            match handle_api_response(resp, false).await {
+                Some(body) => {
+                    if let Some(policies) = body["policies"].as_array() {
+                        if policies.is_empty() {
+                            println!("No policies yet.");
+                            println!("\nCreate one with:");
+                            println!("  bastion policy create --name \"Block social media\" --type BLOCKLIST --config '{{\"domains\":[\"twitter.com\",\"facebook.com\"]}}'");
+                        } else {
+                            println!("{} policy(ies):\n", policies.len());
+                            for p in policies {
+                                let id = p["id"].as_str().unwrap_or("?");
+                                let name = p["name"].as_str().unwrap_or("?");
+                                let ptype = p["type"].as_str().unwrap_or("?");
+                                let enabled = p["enabled"].as_bool().unwrap_or(false);
+                                let priority = p["priority"].as_i64().unwrap_or(0);
+                                let status = if enabled { "ON " } else { "OFF" };
+
+                                println!("  [{}] {} — {} (priority: {})", status, name, ptype, priority);
+                                if verbose {
+                                    println!("       ID: {}", id);
+                                    if let Some(desc) = p["description"].as_str() {
+                                        if !desc.is_empty() { println!("       {}", desc); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+
+        PolicyAction::Get { policy_id } => {
+            let resp = client
+                .get(format!("{}/policies/{}", config.backend_url, policy_id))
+                .header("X-API-Key", &config.api_key)
+                .timeout(std::time::Duration::from_secs(10))
+                .send()
+                .await;
+
+            match handle_api_response(resp, false).await {
+                Some(body) => {
+                    if let Some(p) = body.get("policy") {
+                        println!("Policy: {}\n", p["name"].as_str().unwrap_or("?"));
+                        println!("  ID:          {}", p["id"].as_str().unwrap_or("?"));
+                        println!("  Type:        {}", p["type"].as_str().unwrap_or("?"));
+                        println!("  Enabled:     {}", p["enabled"].as_bool().unwrap_or(false));
+                        println!("  Priority:    {}", p["priority"].as_i64().unwrap_or(0));
+                        if let Some(desc) = p["description"].as_str() {
+                            if !desc.is_empty() { println!("  Description: {}", desc); }
+                        }
+                        if let Some(cfg) = p.get("config") {
+                            println!("  Config:      {}", serde_json::to_string_pretty(cfg).unwrap());
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+
+        PolicyAction::Create { name, r#type, config: cfg_str, description, priority } => {
+            let cfg: serde_json::Value = match serde_json::from_str(cfg_str) {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("Error: Invalid JSON in --config: {}", e);
+                    eprintln!("Example: --config '{{\"domains\":[\"twitter.com\"]}}'");
+                    std::process::exit(1);
+                }
+            };
+
+            let mut payload = serde_json::json!({
+                "name": name,
+                "type": r#type,
+                "config": cfg,
+                "priority": priority,
+            });
+
+            if let Some(desc) = description {
+                payload["description"] = serde_json::json!(desc);
+            }
+
+            println!("Creating policy \"{}\" ({})...", name, r#type);
+
+            let resp = client
+                .post(format!("{}/policies", config.backend_url))
+                .header("X-API-Key", &config.api_key)
+                .json(&payload)
+                .timeout(std::time::Duration::from_secs(10))
+                .send()
+                .await;
+
+            match handle_api_response(resp, false).await {
+                Some(body) => {
+                    let id = body["policy"]["id"].as_str().unwrap_or("?");
+                    println!("Policy created! ID: {}", id);
+                }
+                None => {}
+            }
+        }
+
+        PolicyAction::Toggle { policy_id, enabled } => {
+            let resp = client
+                .put(format!("{}/policies/{}", config.backend_url, policy_id))
+                .header("X-API-Key", &config.api_key)
+                .json(&serde_json::json!({ "enabled": enabled }))
+                .timeout(std::time::Duration::from_secs(10))
+                .send()
+                .await;
+
+            match handle_api_response(resp, false).await {
+                Some(_) => {
+                    println!("Policy {} {}.", policy_id, if *enabled { "enabled" } else { "disabled" });
+                }
+                None => {}
+            }
+        }
+
+        PolicyAction::Delete { policy_id } => {
+            let confirm = Confirm::with_theme(&ColorfulTheme::default())
+                .with_prompt(format!("Delete policy {}?", policy_id))
+                .default(false)
+                .interact()
+                .unwrap_or(false);
+
+            if !confirm {
+                println!("Cancelled.");
+                return;
+            }
+
+            let resp = client
+                .delete(format!("{}/policies/{}", config.backend_url, policy_id))
+                .header("X-API-Key", &config.api_key)
+                .timeout(std::time::Duration::from_secs(10))
+                .send()
+                .await;
+
+            match handle_api_response(resp, false).await {
+                Some(_) => {
+                    println!("Policy deleted.");
+                }
+                None => {}
+            }
+        }
+    }
+}
+
+async fn handle_delete_agent(agent_id_arg: Option<String>, _verbose: bool) {
+    let config = load_config();
+
+    let agent_id = if let Some(id) = agent_id_arg {
+        id
+    } else if let Some(id) = config.agent_id.clone() {
+        id
+    } else {
+        eprintln!("Error: No agent ID found. Pass --agent-id or run from a directory with .bastion-agent.json");
+        std::process::exit(1);
+    };
+
+    let confirm = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!("Delete agent {}? This cannot be undone.", agent_id))
+        .default(false)
+        .interact()
+        .unwrap_or(false);
+
+    if !confirm {
+        println!("Cancelled.");
+        return;
+    }
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .delete(format!("{}/agents/{}", config.backend_url, agent_id))
+        .header("X-API-Key", &config.api_key)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await;
+
+    match handle_api_response(resp, false).await {
+        Some(_) => {
+            println!("Agent deleted from backend.");
+
+            // Clean up local config if it matches
+            if let Ok(local) = std::fs::read_to_string(".bastion-agent.json") {
+                if let Ok(agent) = serde_json::from_str::<serde_json::Value>(&local) {
+                    if agent["agent_id"].as_str() == Some(&agent_id) {
+                        std::fs::remove_file(".bastion-agent.json").ok();
+                        println!("Local .bastion-agent.json removed.");
+                    }
+                }
+            }
+        }
+        None => {}
+    }
+}
+
+async fn handle_wallet(agent_id_arg: Option<String>, network: String, verbose: bool) {
+    let config = load_config();
+
+    let agent_id = if let Some(id) = agent_id_arg {
+        id
+    } else if let Some(id) = config.agent_id.clone() {
+        id
+    } else {
+        eprintln!("Error: No agent ID found. Pass --agent-id or run from a directory with .bastion-agent.json");
+        std::process::exit(1);
+    };
+
+    println!("Fetching wallet for agent {}...\n", agent_id);
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/agents/{}/wallet?network={}", config.backend_url, agent_id, network))
+        .header("X-API-Key", &config.api_key)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await;
+
+    match handle_api_response(resp, false).await {
+        Some(body) => {
+            let address = body["address"].as_str().unwrap_or("?");
+            let net = body["network"].as_str().unwrap_or(&network);
+            let explorer = body["explorerUrl"].as_str().unwrap_or("");
+
+            println!("  Address: {}", address);
+            println!("  Network: {}", net);
+            if !explorer.is_empty() {
+                println!("  Explorer: {}", explorer);
+            }
+
+            if let Some(balances) = body["balances"].as_array() {
+                if !balances.is_empty() {
+                    println!("\n  Balances:");
+                    for b in balances {
+                        let asset = b["asset"].as_str().unwrap_or("?");
+                        let amount = b["amount"].as_str()
+                            .or_else(|| b["amount"].as_f64().map(|_| ""))
+                            .unwrap_or("0");
+                        println!("    {} {}", amount, asset);
+                    }
+                } else {
+                    println!("\n  No balances found.");
+                }
+            }
+
+            if verbose {
+                println!("\n{}", serde_json::to_string_pretty(&body).unwrap());
+            }
+        }
+        None => {}
+    }
+}
+
 fn load_config() -> Config {
-    let config_path = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join("config.json");
+    let config_path = match dirs::home_dir() {
+        Some(h) => h.join(".bastion").join("config.json"),
+        None => {
+            eprintln!("❌ Cannot determine home directory.");
+            std::process::exit(1);
+        }
+    };
 
     if !config_path.exists() {
         eprintln!("❌ Not logged in. Run `bastion login` first.");
         std::process::exit(1);
     }
 
-    let mut config: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+    let config_str = match std::fs::read_to_string(&config_path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("❌ Cannot read config: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let mut config: serde_json::Value = match serde_json::from_str(&config_str) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("❌ Config file is corrupt: {}", e);
+            eprintln!("   Delete ~/.bastion/config.json and run `bastion login` again.");
+            std::process::exit(1);
+        }
+    };
 
     // Auto-migrate old localhost backend URLs to production
     let mut needs_save = false;
@@ -1152,14 +1908,24 @@ fn load_config() -> Config {
 
     // Try to load agent config
     let agent_id = if let Ok(agent_config) = std::fs::read_to_string(".bastion-agent.json") {
-        let agent: serde_json::Value = serde_json::from_str(&agent_config).unwrap();
-        Some(agent["agent_id"].as_str().unwrap().to_string())
+        match serde_json::from_str::<serde_json::Value>(&agent_config) {
+            Ok(agent) => agent["agent_id"].as_str().map(|s| s.to_string()),
+            Err(_) => None,
+        }
     } else {
         None
     };
 
+    let api_key = match config["api_key"].as_str() {
+        Some(k) => k.to_string(),
+        None => {
+            eprintln!("❌ Config file missing api_key. Run `bastion login` again.");
+            std::process::exit(1);
+        }
+    };
+
     Config {
-        api_key: config["api_key"].as_str().unwrap().to_string(),
+        api_key,
         backend_url: config["backend_url"]
             .as_str()
             .unwrap_or("https://bastion-gamma.vercel.app/v1")
@@ -1221,7 +1987,7 @@ async fn check_policy(config: &Config, action_type: String, details: serde_json:
                 if body.contains("QUOTA_EXCEEDED") {
                     eprintln!("\n🚫 QUOTA EXCEEDED");
                     eprintln!("   You've reached your plan's limit.");
-                    eprintln!("   Upgrade at: https://bastion.ai/billing\n");
+                    eprintln!("   Upgrade at: https://bastion.legatia.solutions/billing\n");
                     Err("QUOTA_EXCEEDED".to_string())
                 } else {
                     Err(format!("Access denied: {}", body))
@@ -1275,26 +2041,26 @@ async fn authorize_action(
                         Json(result)
                     }
                     Err(e) => {
-                        eprintln!("   ⚠️  Error parsing response: {}", e);
+                        eprintln!("   🛑 Error parsing response (fail-closed): {}", e);
                         Json(AuthorizeResponse {
-                            allowed: true, // Fail open
-                            reason: Some("Backend response parse error".to_string()),
+                            allowed: false,
+                            reason: Some("Backend response parse error — blocked for safety".to_string()),
                         })
                     }
                 }
             } else {
-                eprintln!("   ⚠️  Backend error: {}", resp.status());
+                eprintln!("   🛑 Backend error (fail-closed): {}", resp.status());
                 Json(AuthorizeResponse {
-                    allowed: true, // Fail open
-                    reason: Some(format!("Backend error: {}", resp.status())),
+                    allowed: false,
+                    reason: Some(format!("Backend error: {} — blocked for safety", resp.status())),
                 })
             }
         }
         Err(e) => {
-            eprintln!("   ⚠️  Cannot reach backend: {}", e);
+            eprintln!("   🛑 Cannot reach backend (fail-closed): {}", e);
             Json(AuthorizeResponse {
-                allowed: true, // Fail open
-                reason: Some("Backend unreachable".to_string()),
+                allowed: false,
+                reason: Some("Backend unreachable — blocked for safety".to_string()),
             })
         }
     }
@@ -1310,10 +2076,14 @@ async fn handle_stop(verbose: bool) {
     let config = load_config();
     let agent_id = config.agent_id.clone().unwrap_or_else(|| "default".to_string());
 
-    let pid_file = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join(format!("{}.pid", agent_id));
+    let bastion_dir = match dirs::home_dir() {
+        Some(h) => h.join(".bastion"),
+        None => {
+            eprintln!("❌ Cannot determine home directory.");
+            return;
+        }
+    };
+    let pid_file = bastion_dir.join(format!("{}.pid", agent_id));
 
     if !pid_file.exists() {
         println!("❌ No daemon running (PID file not found).");
@@ -1393,10 +2163,14 @@ async fn handle_status(verbose: bool) {
     let config = load_config();
     let agent_id = config.agent_id.clone().unwrap_or_else(|| "default".to_string());
 
-    let pid_file = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join(format!("{}.pid", agent_id));
+    let bastion_dir = match dirs::home_dir() {
+        Some(h) => h.join(".bastion"),
+        None => {
+            eprintln!("❌ Cannot determine home directory.");
+            return;
+        }
+    };
+    let pid_file = bastion_dir.join(format!("{}.pid", agent_id));
 
     if !pid_file.exists() {
         println!("Status: ⭕ Not running");
@@ -1434,14 +2208,11 @@ async fn handle_status(verbose: bool) {
                             println!("\nConfiguration:");
                             println!("  Agent ID: {}", agent_id);
                             println!("  Backend: {}", config.backend_url);
-                            println!("  API Key: {}...", &config.api_key[0..5]);
+                            println!("  API Key: {}...", &config.api_key.get(..5).unwrap_or(&config.api_key));
                         }
 
                         // Check log file size
-                        let log_file = dirs::home_dir()
-                            .unwrap()
-                            .join(".bastion")
-                            .join(format!("{}.out", agent_id));
+                        let log_file = bastion_dir.join(format!("{}.out", agent_id));
 
                         if log_file.exists() {
                             if let Ok(metadata) = std::fs::metadata(&log_file) {
@@ -1472,15 +2243,15 @@ async fn handle_logs(lines: usize, follow: bool, _verbose: bool) {
     let config = load_config();
     let agent_id = config.agent_id.clone().unwrap_or_else(|| "default".to_string());
 
-    let log_file = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join(format!("{}.out", agent_id));
-
-    let err_file = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join(format!("{}.err", agent_id));
+    let bastion_dir = match dirs::home_dir() {
+        Some(h) => h.join(".bastion"),
+        None => {
+            eprintln!("❌ Cannot determine home directory.");
+            return;
+        }
+    };
+    let log_file = bastion_dir.join(format!("{}.out", agent_id));
+    let err_file = bastion_dir.join(format!("{}.err", agent_id));
 
     if !log_file.exists() && !err_file.exists() {
         println!("❌ No log files found.");
@@ -1584,7 +2355,13 @@ async fn handle_list(verbose: bool) {
     println!("📋 Registered Agents\n");
 
     let config = load_config();
-    let bastion_dir = dirs::home_dir().unwrap().join(".bastion");
+    let bastion_dir = match dirs::home_dir() {
+        Some(h) => h.join(".bastion"),
+        None => {
+            eprintln!("❌ Cannot determine home directory.");
+            return;
+        }
+    };
 
     // Fetch agents from backend
     let client = reqwest::Client::new();
@@ -1704,8 +2481,20 @@ async fn handle_config(
         return;
     }
 
-    let config_content = std::fs::read_to_string(".bastion-agent.json").unwrap();
-    let mut agent: serde_json::Value = serde_json::from_str(&config_content).unwrap();
+    let config_content = match std::fs::read_to_string(".bastion-agent.json") {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("❌ Failed to read agent config: {}", e);
+            return;
+        }
+    };
+    let mut agent: serde_json::Value = match serde_json::from_str(&config_content) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("❌ Agent config is corrupt: {}", e);
+            return;
+        }
+    };
 
     let mut updated = false;
 
@@ -1735,15 +2524,16 @@ async fn handle_config(
 
     if updated {
         agent["updated_at"] = serde_json::json!(chrono::Utc::now().to_rfc3339());
-        std::fs::write(
-            ".bastion-agent.json",
-            serde_json::to_string_pretty(&agent).unwrap(),
-        )
-        .unwrap();
+        if let Ok(json) = serde_json::to_string_pretty(&agent) {
+            if let Err(e) = std::fs::write(".bastion-agent.json", json) {
+                eprintln!("❌ Failed to save config: {}", e);
+                return;
+            }
+        }
         println!("\n✅ Configuration updated successfully");
     } else {
         println!("📋 Current Configuration:\n");
-        println!("{}", serde_json::to_string_pretty(&agent).unwrap());
+        println!("{}", serde_json::to_string_pretty(&agent).unwrap_or_default());
         println!("\nTo update, use flags like:");
         println!("  bastion config --name \"My Agent\" --enabled true");
     }
@@ -1851,19 +2641,33 @@ async fn handle_audit(limit: usize, agent_id: Option<String>, blocked_only: bool
         }
         Err(e) => {
             println!("❌ Failed to fetch audit log: {}", e);
-            println!("\nMake sure the backend is running:");
-            println!("  cd backend && npm run dev");
+            println!("\nCheck your network connection and backend status.");
         }
     }
 }
 
 async fn handle_stats(range: String, verbose: bool) {
-    println!("📊 Usage Statistics ({})\n", range);
+    println!("📊 Usage Statistics\n");
 
     let config = load_config();
     let client = reqwest::Client::new();
 
-    let url = format!("{}/stats?range={}", config.backend_url, range);
+    // Calculate date range from the range argument
+    let now = chrono::Utc::now();
+    let from = match range.as_str() {
+        "today" => now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc(),
+        "week" => now - chrono::Duration::days(7),
+        "month" => now - chrono::Duration::days(30),
+        "all" => now - chrono::Duration::days(365),
+        _ => now - chrono::Duration::days(30),
+    };
+
+    let url = format!(
+        "{}/analytics/summary?from={}&to={}",
+        config.backend_url,
+        from.to_rfc3339(),
+        now.to_rfc3339()
+    );
 
     if verbose {
         println!("Fetching from: {}\n", url);
@@ -1872,6 +2676,7 @@ async fn handle_stats(range: String, verbose: bool) {
     match client
         .get(&url)
         .header("X-API-Key", &config.api_key)
+        .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
     {
@@ -1879,21 +2684,39 @@ async fn handle_stats(range: String, verbose: bool) {
             if resp.status().is_success() {
                 match resp.json::<serde_json::Value>().await {
                     Ok(data) => {
-                        println!("Total Requests: {}", data["total_requests"].as_i64().unwrap_or(0));
-                        println!("Allowed: {}", data["allowed"].as_i64().unwrap_or(0));
-                        println!("Blocked: {}", data["blocked"].as_i64().unwrap_or(0));
+                        if let Some(summary) = data.get("summary") {
+                            let checks = summary["checksCount"].as_i64().unwrap_or(0);
+                            let allowed = summary["allowedCount"].as_i64().unwrap_or(0);
+                            let blocked = summary["blockedCount"].as_i64().unwrap_or(0);
+                            let errors = summary["errorCount"].as_i64().unwrap_or(0);
+                            let block_rate = summary["blockRate"].as_str().unwrap_or("0.00");
+                            let agents = summary["activeAgents"].as_i64().unwrap_or(0);
+                            let policies = summary["activePolicies"].as_i64().unwrap_or(0);
 
-                        if let Some(block_rate) = data["block_rate"].as_f64() {
-                            println!("Block Rate: {:.2}%", block_rate * 100.0);
+                            println!("  Range: {}", range);
+                            println!("  Total Checks: {}", checks);
+                            println!("  Allowed: {}", allowed);
+                            println!("  Blocked: {}", blocked);
+                            println!("  Errors: {}", errors);
+                            println!("  Block Rate: {}%", block_rate);
+                            println!("  Active Agents: {}", agents);
+                            println!("  Active Policies: {}", policies);
+                        }
+
+                        if let Some(blocks) = data["recentBlocks"].as_array() {
+                            if !blocks.is_empty() {
+                                println!("\n  Recent Blocks:");
+                                for b in blocks.iter().take(5) {
+                                    let agent = b["agent"]["name"].as_str().unwrap_or("?");
+                                    let policy = b["policy"]["name"].as_str().unwrap_or("?");
+                                    let action = b["actionType"].as_str().unwrap_or("?");
+                                    println!("    {} — {} blocked by {}", agent, action, policy);
+                                }
+                            }
                         }
 
                         if verbose {
-                            println!("\nBreakdown by action type:");
-                            if let Some(breakdown) = data["breakdown"].as_object() {
-                                for (action_type, count) in breakdown {
-                                    println!("  {}: {}", action_type, count);
-                                }
-                            }
+                            println!("\n{}", serde_json::to_string_pretty(&data).unwrap());
                         }
                     }
                     Err(e) => {
@@ -1901,15 +2724,11 @@ async fn handle_stats(range: String, verbose: bool) {
                     }
                 }
             } else {
-                println!("❌ Backend returned status: {}", resp.status());
-                println!("\nNote: Stats endpoint may not be implemented yet.");
-                println!("This is a placeholder for future functionality.");
+                eprintln!("❌ Backend returned status: {}", resp.status());
             }
         }
         Err(e) => {
-            println!("❌ Failed to fetch stats: {}", e);
-            println!("\nNote: Stats endpoint may not be implemented yet.");
-            println!("This is a placeholder for future functionality.");
+            eprintln!("❌ Failed to fetch stats: {}", e);
         }
     }
 }
@@ -1965,10 +2784,15 @@ async fn handle_validate(verbose: bool) {
     let mut warnings = 0;
 
     // Check global config
-    let config_path = dirs::home_dir()
-        .unwrap()
-        .join(".bastion")
-        .join("config.json");
+    let config_path = match dirs::home_dir() {
+        Some(h) => h.join(".bastion").join("config.json"),
+        None => {
+            println!("  ❌ Cannot determine home directory");
+            println!("\n{}", "=".repeat(50));
+            println!("❌ 1 error(s) found");
+            return;
+        }
+    };
 
     println!("Checking global config...");
     if !config_path.exists() {
@@ -1988,7 +2812,7 @@ async fn handle_validate(verbose: bool) {
                             println!("  ❌ Missing api_key");
                             errors += 1;
                         } else {
-                            let key = config["api_key"].as_str().unwrap();
+                            let key = config["api_key"].as_str().unwrap_or("");
                             if key.len() < 10 {
                                 println!("  ❌ API key too short");
                                 errors += 1;
@@ -2003,7 +2827,7 @@ async fn handle_validate(verbose: bool) {
                             println!("  ⚠️  Missing backend_url");
                             warnings += 1;
                         } else if verbose {
-                            println!("  Backend URL: {}", config["backend_url"].as_str().unwrap());
+                            println!("  Backend URL: {}", config["backend_url"].as_str().unwrap_or("not set"));
                         }
                     }
                     Err(e) => {
@@ -2067,7 +2891,7 @@ async fn handle_validate(verbose: bool) {
         let client = reqwest::Client::new();
 
         match client
-            .get(format!("{}/../../health", config.backend_url))
+            .get(format!("{}/health", config.backend_url.trim_end_matches("/v1")))
             .timeout(std::time::Duration::from_secs(5))
             .send()
             .await
@@ -2082,7 +2906,7 @@ async fn handle_validate(verbose: bool) {
             }
             Err(_) => {
                 println!("  ⚠️  Cannot reach backend");
-                println!("     Make sure it's running: cd backend && npm run dev");
+                println!("     Check your network connection and service status.");
                 warnings += 1;
             }
         }
