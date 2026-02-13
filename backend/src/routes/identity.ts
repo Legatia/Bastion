@@ -5,6 +5,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateApiKey } from '../middleware/auth';
 import { QuotaService } from '../services/quota-service';
+import { logger } from '../middleware/logger';
 import {
     buildRegistrationFile,
     buildReputationAttestation,
@@ -60,7 +61,7 @@ router.get('/agents/:id/profile.json', profileLimiter, async (req: Request, res:
         res.setHeader('Cache-Control', 'public, max-age=60'); // Cache for 1 minute
         res.json(registrationFile);
     } catch (error) {
-        console.error('Error fetching agent profile:', error);
+        logger.error('Error fetching agent profile:', error);
         res.status(500).json({ error: 'Failed to fetch agent profile' });
     }
 });
@@ -108,7 +109,7 @@ router.get('/agents/:id/identity', authenticateApiKey, async (req: Request, res:
             profileUrl: getAgentURI(agent.id, baseUrl),
         });
     } catch (error) {
-        console.error('Error fetching identity:', error);
+        logger.error('Error fetching identity:', error);
         res.status(500).json({ error: 'Failed to fetch identity status' });
     }
 });
@@ -173,7 +174,7 @@ router.post('/agents/:id/verify', authenticateApiKey, async (req: Request, res: 
             registryAddress: IDENTITY_REGISTRIES[chain].address,
         });
     } catch (error) {
-        console.error('Error preparing verification:', error);
+        logger.error('Error preparing verification:', error);
         res.status(500).json({ error: 'Failed to prepare verification' });
     }
 });
@@ -268,7 +269,7 @@ router.post('/agents/:id/verify/confirm', authenticateApiKey, async (req: Reques
             },
         });
     } catch (error) {
-        console.error('Error confirming verification:', error);
+        logger.error('Error confirming verification:', error);
         res.status(500).json({ error: 'Failed to confirm verification' });
     }
 });
@@ -374,7 +375,7 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
             },
         });
     } catch (error: any) {
-        console.error('Error in server-side registration:', error);
+        logger.error('Error in server-side registration:', error);
         res.status(500).json({ error: 'Registration failed', message: error.message });
     }
 });
@@ -437,7 +438,7 @@ router.get('/agents/:id/wallet', authenticateApiKey, async (req: Request, res: R
             balances,
         });
     } catch (error) {
-        console.error('Error fetching wallet:', error);
+        logger.error('Error fetching wallet:', error);
         res.status(500).json({ error: 'Failed to fetch wallet info' });
     }
 });
@@ -492,7 +493,7 @@ router.post('/agents/:id/wallet/faucet', authenticateApiKey, async (req: Request
             explorerUrl: `https://sepolia.basescan.org/tx/${result.transactionHash}`,
         });
     } catch (error: any) {
-        console.error('Error requesting faucet:', error);
+        logger.error('Error requesting faucet:', error);
         res.status(500).json({ error: 'Faucet request failed', message: error.message });
     }
 });

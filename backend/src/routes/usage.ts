@@ -3,6 +3,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateApiKey } from '../middleware/auth';
 import { QuotaService } from '../services/quota-service';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ router.get('/usage', authenticateApiKey, async (req: Request, res: Response) => 
 
         res.json(usage);
     } catch (error) {
-        console.error('Error fetching usage:', error);
+        logger.error('Error fetching usage:', error);
         res.status(500).json({
             error: 'Internal Server Error',
             message: 'Failed to fetch usage',

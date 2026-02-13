@@ -3,6 +3,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateApiKey } from '../middleware/auth';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 
@@ -110,7 +111,7 @@ router.get('/analytics/summary', authenticateApiKey, async (req: Request, res: R
       },
     });
   } catch (error) {
-    console.error('Error fetching analytics:', error);
+    logger.error('Error fetching analytics:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch analytics',
@@ -162,7 +163,7 @@ router.get('/analytics/agents', authenticateApiKey, async (req: Request, res: Re
 
     res.json({ agents: agentStats });
   } catch (error) {
-    console.error('Error fetching agent analytics:', error);
+    logger.error('Error fetching agent analytics:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch agent analytics',

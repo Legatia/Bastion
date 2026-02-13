@@ -2,6 +2,7 @@
 // Handles referral coupons with monthly usage limits (max 50% = 10 coupons)
 
 import { prisma } from '../lib/prisma';
+import { logger } from '../middleware/logger';
 
 export class CouponManager {
   /**
@@ -268,7 +269,7 @@ export class CouponManager {
 
     if (coupons.length < count) {
       // This might happen if data is out of sync, but we should try to release what we can
-      console.warn(`[CouponManager] Requested release of ${count} coupons but only found ${coupons.length} used.`);
+      logger.warn(`[CouponManager] Requested release of ${count} coupons but only found ${coupons.length} used.`);
     }
 
     const couponIds = coupons.map(c => c.id);

@@ -10,6 +10,7 @@ import {
   EvaluationContext,
 } from '../types';
 import { DLPScanner } from './dlp-scanner';
+import { logger } from '../middleware/logger';
 
 export class PolicyEvaluator {
   /**
@@ -75,11 +76,11 @@ export class PolicyEvaluator {
           return await this.evaluateCustomWebhook(policy, action);
 
         default:
-          console.warn(`Unknown policy type: ${policy.type}`);
+          logger.warn(`Unknown policy type: ${policy.type}`);
           return { allowed: true };
       }
     } catch (error) {
-      console.error(`Error evaluating policy ${policy.id}:`, error);
+      logger.error(`Error evaluating policy ${policy.id}:`, error);
       // Fail open or closed? For now, fail open (allow)
       return { allowed: true, reason: 'Policy evaluation error' };
     }
@@ -207,13 +208,13 @@ export class PolicyEvaluator {
       default:
         try {
           if (this.isUnsafeRegex(pattern)) {
-            console.warn(`[SECURITY] Rejected potentially catastrophic regex: ${pattern}`);
+            logger.warn(`[SECURITY] Rejected potentially catastrophic regex: ${pattern}`);
             return { allowed: true, reason: 'Regex pattern rejected (too complex)' };
           }
           const regex = new RegExp(pattern, 'i');
           matches = regex.test(value);
         } catch (e) {
-          console.error('Invalid regex pattern:', pattern);
+          logger.error('Invalid regex pattern:', pattern);
           return { allowed: true };
         }
     }
@@ -314,7 +315,7 @@ export class PolicyEvaluator {
       for (const pattern of scan_patterns) {
         try {
           if (this.isUnsafeRegex(pattern)) {
-            console.warn(`[SECURITY] Rejected potentially catastrophic DLP regex: ${pattern}`);
+            logger.warn(`[SECURITY] Rejected potentially catastrophic DLP regex: ${pattern}`);
             continue;
           }
           const regex = new RegExp(pattern, 'gi');
@@ -330,7 +331,7 @@ export class PolicyEvaluator {
             }
           }
         } catch (e) {
-          console.error('Invalid DLP pattern:', pattern);
+          logger.error('Invalid DLP pattern:', pattern);
         }
       }
     }
@@ -371,7 +372,7 @@ export class PolicyEvaluator {
         day = dayMap[dayStr] ?? now.getDay();
       } catch {
         // Invalid timezone — fall back to server time
-        console.warn(`Invalid timezone in time window policy: ${timezone}`);
+        logger.warn(`Invalid timezone in time window policy: ${timezone}`);
         hour = now.getHours();
         day = now.getDay();
       }
@@ -479,7 +480,7 @@ export class PolicyEvaluator {
 
     // SSRF protection: validate the webhook URL
     if (!this.isSafeWebhookUrl(webhook_url)) {
-      console.warn(`[SECURITY] Blocked SSRF attempt to: ${webhook_url}`);
+      logger.warn(`[SECURITY] Blocked SSRF attempt to: ${webhook_url}`);
       return { allowed: true, reason: 'Webhook URL blocked by security policy' };
     }
 
@@ -507,7 +508,7 @@ export class PolicyEvaluator {
         policyId: policy.id,
       };
     } catch (error) {
-      console.error('Webhook evaluation failed:', error);
+      logger.error('Webhook evaluation failed:', error);
       // Fail open (allow) on webhook error
       return { allowed: true, reason: 'Webhook timeout/error' };
     }

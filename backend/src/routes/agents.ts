@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { authenticateApiKey } from '../middleware/auth';
 import { QuotaService } from '../services/quota-service';
 import { CdpWalletService } from '../services/cdp-wallet-service';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.get('/agents', authenticateApiKey, async (req: Request, res: Response) =>
 
     res.json({ agents });
   } catch (error) {
-    console.error('Error fetching agents:', error);
+    logger.error('Error fetching agents:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch agents',
@@ -77,13 +78,13 @@ router.post('/agents', authenticateApiKey, async (req: Request, res: Response) =
     const walletAccess = await QuotaService.checkFeatureAccess(req.user.id, 'CDP_WALLET');
     if (walletAccess.allowed) {
       CdpWalletService.provisionWallet(agent.id).catch((err) => {
-        console.error('[CDP] Non-blocking wallet provisioning failed:', err.message);
+        logger.error('[CDP] Non-blocking wallet provisioning failed:', err.message);
       });
     }
 
     res.status(201).json({ agent });
   } catch (error: any) {
-    console.error('Error creating agent:', error);
+    logger.error('Error creating agent:', error);
 
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -130,7 +131,7 @@ router.put('/agents/:id/heartbeat', authenticateApiKey, async (req: Request, res
 
     res.json({ message: 'Heartbeat recorded' });
   } catch (error) {
-    console.error('Error updating heartbeat:', error);
+    logger.error('Error updating heartbeat:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update heartbeat',
@@ -168,7 +169,7 @@ router.delete('/agents/:id', authenticateApiKey, async (req: Request, res: Respo
 
     res.json({ message: 'Agent deleted successfully' });
   } catch (error) {
-    console.error('Error deleting agent:', error);
+    logger.error('Error deleting agent:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete agent',

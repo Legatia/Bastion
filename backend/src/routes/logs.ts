@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateApiKey } from '../middleware/auth';
 import { EncryptionService } from '../services/encryption-service';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 
@@ -96,7 +97,7 @@ router.get('/logs', authenticateApiKey, async (req: Request, res: Response) => {
             logData.encryptedData = undefined; // Remove encrypted data from response
             logData.encrypted = false;
           } catch (error) {
-            console.error('Failed to decrypt log:', error);
+            logger.error('Failed to decrypt log:', error);
             logData.actionData = { error: 'Decryption failed' };
             logData.encrypted = true;
           }
@@ -124,7 +125,7 @@ router.get('/logs', authenticateApiKey, async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching logs:', error);
+    logger.error('Error fetching logs:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch logs',
@@ -162,7 +163,7 @@ router.get('/logs/:id', authenticateApiKey, async (req: Request, res: Response) 
 
     res.json({ log });
   } catch (error) {
-    console.error('Error fetching log:', error);
+    logger.error('Error fetching log:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch log',

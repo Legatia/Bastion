@@ -10,6 +10,7 @@ import { AuthorizeRequest, AuthorizeResponse } from '../types';
 import { QuotaService } from '../services/quota-service';
 import { EncryptionService } from '../services/encryption-service';
 import { behavioralCollector } from '../services/behavioralCollector';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 
@@ -86,7 +87,7 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
             requestBody: action.details ? JSON.stringify(action.details) : undefined,
             responseTimeMs: latencyMs,
           })
-          .catch((err) => console.error('[MoltMind] Collection error:', err));
+          .catch((err) => logger.error('[MoltMind] Collection error:', err));
       }
     }
 
@@ -152,7 +153,7 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
 
     res.status(200).json(response);
   } catch (error: any) {
-    console.error('Authorization error:', error);
+    logger.error('Authorization error:', error);
 
     // Validation error
     if (error instanceof z.ZodError) {

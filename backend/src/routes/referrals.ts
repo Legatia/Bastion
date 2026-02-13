@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { authenticateApiKey } from '../middleware/auth';
 import { CouponManager } from '../services/coupon-manager';
 import { BillingService } from '../services/billing-service';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 
@@ -41,7 +42,7 @@ router.get('/referrals/code', authenticateApiKey, async (req: Request, res: Resp
       active_referrals: user.activeReferrals
     });
   } catch (error) {
-    console.error('Error fetching referral code:', error);
+    logger.error('Error fetching referral code:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch referral code'
@@ -106,7 +107,7 @@ router.get('/referrals/stats', authenticateApiKey, async (req: Request, res: Res
       }))
     });
   } catch (error) {
-    console.error('Error fetching referral stats:', error);
+    logger.error('Error fetching referral stats:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch referral stats'
@@ -141,7 +142,7 @@ router.get('/referrals/coupons', authenticateApiKey, async (req: Request, res: R
       coupon_value: '5%'
     });
   } catch (error) {
-    console.error('Error fetching coupons:', error);
+    logger.error('Error fetching coupons:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch coupon balance'
@@ -181,7 +182,7 @@ router.get('/referrals/invoice-preview', authenticateApiKey, async (req: Request
 
     res.json(preview);
   } catch (error) {
-    console.error('Error generating invoice preview:', error);
+    logger.error('Error generating invoice preview:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to generate invoice preview'
@@ -214,7 +215,7 @@ router.post('/auth/register-with-referral', async (req: Request, res: Response) 
 
     res.json({ message: 'Registration with referral code' });
   } catch (error) {
-    console.error('Error registering with referral:', error);
+    logger.error('Error registering with referral:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

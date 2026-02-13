@@ -3,6 +3,8 @@
  * Comprehensive pattern library for detecting sensitive data
  */
 
+import { logger } from '../middleware/logger';
+
 export interface DLPMatch {
   type: string;
   pattern: string;
@@ -223,7 +225,7 @@ export class DLPScanner {
 
     // Enforce content size limit to prevent resource exhaustion
     if (content.length > this.MAX_CONTENT_SIZE) {
-      console.warn(`[DLP] Content too large: ${content.length} bytes (max: ${this.MAX_CONTENT_SIZE})`);
+      logger.warn(`[DLP] Content too large: ${content.length} bytes (max: ${this.MAX_CONTENT_SIZE})`);
       return {
         blocked: true,
         matches: [],
@@ -247,7 +249,7 @@ export class DLPScanner {
       // Check for timeout to prevent ReDoS
       const elapsedMs = Date.now() - startTime;
       if (elapsedMs > this.SCAN_TIMEOUT) {
-        console.warn(`[DLP] Scan timeout after ${elapsedMs}ms`);
+        logger.warn(`[DLP] Scan timeout after ${elapsedMs}ms`);
         return {
           blocked: true,
           matches,

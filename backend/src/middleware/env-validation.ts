@@ -44,7 +44,7 @@ export function validateEnv(): void {
 
     // Warn about recommended but missing optional vars in production
     if (process.env.NODE_ENV === 'production') {
-        const productionRecommended = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'BACKEND_URL'];
+        const productionRecommended = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_PRICE_ID_STARTER', 'STRIPE_PRICE_ID_PRO', 'BACKEND_URL'];
         for (const envVar of productionRecommended) {
             if (!process.env[envVar]) {
                 warnings.push(envVar);

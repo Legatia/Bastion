@@ -2,6 +2,7 @@
 // Uses AES-256-GCM for authenticated encryption
 
 import crypto from 'crypto';
+import { logger } from '../middleware/logger';
 
 /**
  * EncryptionService provides client-side encrypted audit logs.
@@ -90,7 +91,7 @@ export class EncryptionService {
       // Format: enc_v1:{iv}:{authTag}:{ciphertext}
       return `enc_v1:${iv.toString('base64')}:${authTag.toString('base64')}:${ciphertext}`;
     } catch (error) {
-      console.error('Encryption error:', error);
+      logger.error('Encryption error:', error);
       throw new Error('Failed to encrypt data');
     }
   }
@@ -129,7 +130,7 @@ export class EncryptionService {
       // Parse JSON
       return JSON.parse(plaintext);
     } catch (error) {
-      console.error('Decryption error:', error);
+      logger.error('Decryption error:', error);
       throw new Error('Failed to decrypt data - invalid key or corrupted data');
     }
   }

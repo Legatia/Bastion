@@ -7,6 +7,7 @@
 import { prisma } from '../lib/prisma';
 import { baselineEngine } from './baselineEngine';
 import { driftDetector } from './driftDetector';
+import { logger } from '../middleware/logger';
 
 // Intervals
 const BASELINE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -45,7 +46,7 @@ async function getMoltMindAgents(): Promise<string[]> {
 async function runBaselineRecalculation(): Promise<void> {
     try {
         const agentIds = await getMoltMindAgents();
-        console.log(`[MoltMind Scheduler] Baseline recalculation starting for ${agentIds.length} agents`);
+        logger.info(`[MoltMind Scheduler] Baseline recalculation starting for ${agentIds.length} agents`);
 
         for (const agentId of agentIds) {
             try {
@@ -54,13 +55,13 @@ async function runBaselineRecalculation(): Promise<void> {
                     await baselineEngine.calculateBaseline(agentId);
                 }
             } catch (err) {
-                console.error(`[MoltMind Scheduler] Baseline error for agent ${agentId}:`, err);
+                logger.error(`[MoltMind Scheduler] Baseline error for agent ${agentId}:`, err);
             }
         }
 
-        console.log(`[MoltMind Scheduler] Baseline recalculation complete`);
+        logger.info(`[MoltMind Scheduler] Baseline recalculation complete`);
     } catch (err) {
-        console.error('[MoltMind Scheduler] Baseline batch error:', err);
+        logger.error('[MoltMind Scheduler] Baseline batch error:', err);
     }
 }
 
@@ -71,24 +72,24 @@ async function runBaselineRecalculation(): Promise<void> {
 async function runDriftDetection(): Promise<void> {
     try {
         const agentIds = await getMoltMindAgents();
-        console.log(`[MoltMind Scheduler] Drift detection starting for ${agentIds.length} agents`);
+        logger.info(`[MoltMind Scheduler] Drift detection starting for ${agentIds.length} agents`);
 
         for (const agentId of agentIds) {
             try {
                 const result = await driftDetector.detectDrift(agentId);
                 if (result.hasDrift) {
-                    console.log(
+                    logger.info(
                         `[MoltMind Scheduler] Drift detected for agent ${agentId}: score=${result.overallScore}, alerts=${result.alerts.length}`
                     );
                 }
             } catch (err) {
-                console.error(`[MoltMind Scheduler] Drift error for agent ${agentId}:`, err);
+                logger.error(`[MoltMind Scheduler] Drift error for agent ${agentId}:`, err);
             }
         }
 
-        console.log(`[MoltMind Scheduler] Drift detection complete`);
+        logger.info(`[MoltMind Scheduler] Drift detection complete`);
     } catch (err) {
-        console.error('[MoltMind Scheduler] Drift batch error:', err);
+        logger.error('[MoltMind Scheduler] Drift batch error:', err);
     }
 }
 
@@ -132,11 +133,11 @@ async function runDataCleanup(): Promise<void> {
             }),
         ]);
 
-        console.log(
+        logger.info(
             `[MoltMind Cleanup] Deleted: ${events.count} events, ${scores.count} health scores, ${alerts.count} alerts, ${baselines.count} old baselines`
         );
     } catch (err) {
-        console.error('[MoltMind Cleanup] Error:', err);
+        logger.error('[MoltMind Cleanup] Error:', err);
     }
 }
 
@@ -145,7 +146,7 @@ async function runDataCleanup(): Promise<void> {
  * Call this once from the server startup.
  */
 export function startMoltMindScheduler(): void {
-    console.log('[MoltMind Scheduler] Starting...');
+    logger.info('[MoltMind Scheduler] Starting...');
 
     // Run baseline recalculation daily
     baselineTimer = setInterval(runBaselineRecalculation, BASELINE_INTERVAL_MS);
@@ -162,7 +163,7 @@ export function startMoltMindScheduler(): void {
     // Run initial cleanup 2 minutes after boot
     setTimeout(runDataCleanup, 120_000);
 
-    console.log('[MoltMind Scheduler] Active: drift every 1h, baseline every 24h, cleanup every 24h');
+    logger.info('[MoltMind Scheduler] Active: drift every 1h, baseline every 24h, cleanup every 24h');
 }
 
 /**
@@ -181,5 +182,5 @@ export function stopMoltMindScheduler(): void {
         clearInterval(cleanupTimer);
         cleanupTimer = null;
     }
-    console.log('[MoltMind Scheduler] Stopped');
+    logger.info('[MoltMind Scheduler] Stopped');
 }

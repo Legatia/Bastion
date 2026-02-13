@@ -13,6 +13,7 @@ import { prisma } from '../lib/prisma';
 import { driftDetector } from '../services/driftDetector';
 import { baselineEngine } from '../services/baselineEngine';
 import { QuotaService } from '../services/quota-service';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 
@@ -59,7 +60,7 @@ router.get(
                 status: 'ready',
             });
         } catch (error: any) {
-            console.error('[MoltMind] Error getting health:', error);
+            logger.error('[MoltMind] Error getting health:', error);
             return res.status(500).json({ error: 'Failed to get health score' });
         }
     }
@@ -94,7 +95,7 @@ router.get(
 
             return res.json({ alerts });
         } catch (error: any) {
-            console.error('[MoltMind] Error getting alerts:', error);
+            logger.error('[MoltMind] Error getting alerts:', error);
             return res.status(500).json({ error: 'Failed to get alerts' });
         }
     }
@@ -137,7 +138,7 @@ router.post(
 
             return res.json({ success: true });
         } catch (error: any) {
-            console.error('[MoltMind] Error acknowledging alert:', error);
+            logger.error('[MoltMind] Error acknowledging alert:', error);
             return res.status(500).json({ error: 'Failed to acknowledge alert' });
         }
     }
@@ -185,7 +186,7 @@ router.get(
                 baseline,
             });
         } catch (error: any) {
-            console.error('[MoltMind] Error getting baseline:', error);
+            logger.error('[MoltMind] Error getting baseline:', error);
             return res.status(500).json({ error: 'Failed to get baseline' });
         }
     }
@@ -229,7 +230,7 @@ router.post(
                 baseline,
             });
         } catch (error: any) {
-            console.error('[MoltMind] Error refreshing baseline:', error);
+            logger.error('[MoltMind] Error refreshing baseline:', error);
             return res.status(500).json({ error: 'Failed to refresh baseline' });
         }
     }
@@ -264,7 +265,7 @@ router.post(
 
             return res.json(result);
         } catch (error: any) {
-            console.error('[MoltMind] Error analyzing agent:', error);
+            logger.error('[MoltMind] Error analyzing agent:', error);
             return res.status(500).json({ error: 'Failed to analyze agent' });
         }
     }

@@ -116,7 +116,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
                 apiKey: generateSecureApiKey(),
                 tier: SubscriptionTier.FREE,
                 referredByCode: referral_code || null,
-                referralCode: `ref_${Math.random().toString(36).substring(2, 10)}`,
+                referralCode: `ref_${crypto.randomBytes(6).toString('base64url')}`,
             },
         });
 
@@ -201,7 +201,7 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                     apiKey: generateSecureApiKey(),
                     tier: SubscriptionTier.FREE,
                     googleId: googleUser.id,
-                    referralCode: `ref_${Math.random().toString(36).substring(2, 10)}`,
+                    referralCode: `ref_${crypto.randomBytes(6).toString('base64url')}`,
                 },
             });
             logger.info('New user created via Google OAuth', { email: googleUser.email });

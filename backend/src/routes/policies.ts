@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { authenticateApiKey } from '../middleware/auth';
+import { logger } from '../middleware/logger';
 
 const router = Router();
 
@@ -44,7 +45,7 @@ router.get('/policies', authenticateApiKey, async (req: Request, res: Response) 
 
     res.json({ policies });
   } catch (error) {
-    console.error('Error fetching policies:', error);
+    logger.error('Error fetching policies:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch policies',
@@ -78,7 +79,7 @@ router.get('/policies/:id', authenticateApiKey, async (req: Request, res: Respon
 
     res.json({ policy });
   } catch (error) {
-    console.error('Error fetching policy:', error);
+    logger.error('Error fetching policy:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch policy',
@@ -114,7 +115,7 @@ router.post('/policies', authenticateApiKey, async (req: Request, res: Response)
 
     res.status(201).json({ policy });
   } catch (error: any) {
-    console.error('Error creating policy:', error);
+    logger.error('Error creating policy:', error);
 
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -167,7 +168,7 @@ router.put('/policies/:id', authenticateApiKey, async (req: Request, res: Respon
 
     res.json({ policy });
   } catch (error: any) {
-    console.error('Error updating policy:', error);
+    logger.error('Error updating policy:', error);
 
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -216,7 +217,7 @@ router.delete('/policies/:id', authenticateApiKey, async (req: Request, res: Res
 
     res.json({ message: 'Policy deleted successfully' });
   } catch (error) {
-    console.error('Error deleting policy:', error);
+    logger.error('Error deleting policy:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete policy',
