@@ -774,6 +774,57 @@ Troubleshooting:
 
 ---
 
+## Behavioral Monitoring
+
+### `bastion moltmind`
+
+Commands for interacting with the MoltMind behavioral monitoring engine.
+
+**Subcommands:**
+- `health` - Get the current cognitive health score (0-100)
+- `alerts` - List recent behavioral anomalies
+- `baseline` - View the current behavioral baseline
+- `analyze` - Trigger a manual drift analysis
+
+**Example:**
+```bash
+bastion moltmind health
+bastion moltmind alerts --limit 10
+```
+
+---
+
+## Agent Identity
+
+### `bastion register` / `verify`
+
+Manage on-chain identities via ERC-8004.
+
+**Commands:**
+- `register` - Commit and register the agent on the Base blockchain
+- `verify` - Check the on-chain status of an agent ID
+
+**Example:**
+```bash
+bastion register --chain base-mainnet
+bastion verify --agent-id 550e8400...
+```
+
+---
+
+## Agent Wallet
+
+### `bastion wallet`
+
+View the CDP-managed wallet associated with the agent.
+
+**Usage:**
+```bash
+bastion wallet
+```
+
+---
+
 ## Maintenance
 
 ### `bastion update`
@@ -850,6 +901,10 @@ Latest version: 0.2.0
 | `bastion test` | Test policies | `bastion test --action-type http_request --url https://api.com` |
 | `bastion validate` | Check config | `bastion validate` |
 | `bastion health` | Check backend | `bastion health` |
+| `bastion moltmind` | Behavioral stats | `bastion moltmind health` |
+| `bastion register` | On-chain registration | `bastion register` |
+| `bastion verify` | Verify identity | `bastion verify --agent-id xxx` |
+| `bastion wallet` | View agent wallet | `bastion wallet` |
 | `bastion update` | Update CLI | `bastion update` |
 
 ## Next Steps

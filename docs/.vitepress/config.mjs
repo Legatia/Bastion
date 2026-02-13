@@ -18,7 +18,6 @@ export default defineConfig({
       { text: 'Guide', link: '/getting-started' },
       { text: 'CLI', link: '/cli/overview' },
       { text: 'Policies', link: '/policies/overview' },
-      { text: 'API', link: '/api/reference' },
       {
         text: 'Dashboard',
         link: 'https://bastion.legatia.solutions/'
@@ -38,19 +37,22 @@ export default defineConfig({
         text: 'Core Concepts',
         items: [
           { text: 'How It Works', link: '/concepts/how-it-works' },
-          { text: 'Architecture', link: '/concepts/architecture' },
-          { text: 'Policies', link: '/concepts/policies' },
-          { text: 'Security Model', link: '/concepts/security' },
+        ]
+      },
+      {
+        text: 'Desktop App',
+        items: [
+          { text: 'Overview', link: '/desktop/overview' },
         ]
       },
       {
         text: 'CLI Reference',
         items: [
           { text: 'Overview', link: '/cli/overview' },
-          { text: 'Installation', link: '/cli/installation' },
           { text: 'Commands', link: '/cli/commands' },
-          { text: 'Daemon Management', link: '/cli/daemon-management' },
-          { text: 'Configuration', link: '/cli/configuration' },
+          { text: 'MoltMind Monitoring', link: '/cli/moltmind' },
+          { text: 'On-Chain Identity', link: '/cli/identity' },
+          { text: 'Agent Wallet', link: '/cli/wallet' },
           { text: 'Troubleshooting', link: '/cli/troubleshooting' },
         ]
       },
@@ -64,6 +66,7 @@ export default defineConfig({
           { text: 'Data Loss Prevention', link: '/policies/dlp' },
           { text: 'Time Windows', link: '/policies/time-windows' },
           { text: 'Allow/Block Lists', link: '/policies/allow-block-lists' },
+          { text: 'Pattern Matching', link: '/policies/pattern-matching' },
           { text: 'Custom Webhooks', link: '/policies/webhooks' },
         ]
       },
@@ -71,10 +74,6 @@ export default defineConfig({
         text: 'Guides',
         items: [
           { text: 'Your First Agent', link: '/guides/first-agent' },
-          { text: 'Production Deployment', link: '/guides/production' },
-          { text: 'Policy Examples', link: '/guides/policy-examples' },
-          { text: 'Testing Policies', link: '/guides/testing' },
-          { text: 'Monitoring & Alerts', link: '/guides/monitoring' },
         ]
       },
       {
@@ -86,19 +85,10 @@ export default defineConfig({
           { text: 'CrewAI', link: '/guides/crewai-integration' },
         ]
       },
-      {
-        text: 'API Reference',
-        items: [
-          { text: 'REST API', link: '/api/reference' },
-          { text: 'Authorization Endpoint', link: '/api/authorize' },
-          { text: 'Audit Logs', link: '/api/audit' },
-          { text: 'Statistics', link: '/api/stats' },
-        ]
-      }
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/bastion/bastion' }
+      { icon: 'github', link: 'https://github.com/Legatia/Bastion' }
     ],
 
     search: {
@@ -106,7 +96,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: 'https://github.com/bastion/bastion/edit/main/docs/:path',
+      pattern: 'https://github.com/Legatia/Bastion/edit/main/docs/:path',
       text: 'Edit this page on GitHub'
     },
 

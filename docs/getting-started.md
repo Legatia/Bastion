@@ -4,23 +4,36 @@ Get your first AI agent protected with Bastion in under 5 minutes.
 
 ## Prerequisites
 
-- **Rust** (1.70+) - [Install Rust](https://rustup.rs/)
+- **Rust** (1.70+) - [Install Rust](https://rustup.rs/) (Only needed for CLI)
 - **Node.js** (18+) - For running the backend locally
 - **PostgreSQL** (optional) - For persistent storage
 
-## Step 1: Install the CLI
+## Fast Track: Bastion Desktop
+
+If you want to get started with a visual interface and zero terminal setup, download the **Bastion Desktop App**.
+
+1.  **Download** the installer for your OS ([Mac](https://github.com/Legatia/Bastion/releases) / [Windows](https://github.com/Legatia/Bastion/releases) / [Linux](https://github.com/Legatia/Bastion/releases)).
+2.  **Run the Install Wizard** — it will handle OpenClaw installation, proxy setup, and API key configuration for you.
+3.  **Start Protecting** — manage your agents, policies, and identity from the native dashboard.
+
+---
+
+## Step 1: Install the CLI (Alternative)
 
 ```bash
-# Clone the repository
-git clone https://github.com/bastion/bastion.git
-cd bastion/cli
-
-# Build and install
-cargo install --path .
+# One-line install (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash
 
 # Verify installation
 bastion --version
-# Output: bastion 0.1.0
+```
+
+Or build from source (requires Rust 1.70+):
+
+```bash
+git clone https://github.com/Legatia/Bastion.git
+cd Bastion/cli
+cargo install --path .
 ```
 
 ## Step 2: Choose Your Backend
@@ -47,7 +60,16 @@ npm run dev
 
 The backend will start on `http://localhost:3000/v1`.
 
-## Step 3: Create an Account
+## Step 3: Choose Your Plan
+
+Bastion provides 4 tiers to scale with your agent deployment.
+
+| Tier | Price | Capacity | Key Features |
+| :--- | :--- | :--- | :--- |
+| **Free** | $0 | 2 Agents | Basic Policies, REST API |
+| **Starter** | $29/mo | 10 Agents | DLP Patterns, Behavioral Alerts |
+| **Pro** | $79/mo | 25 Agents | ERC-8004 Identity, Priority Support |
+| **Enterprise** | Custom | Unlimited | Custom SLAs, On-prem Support |
 
 1. Open https://bastion.legatia.solutions in your browser
 2. Sign up for a new account
@@ -305,6 +327,6 @@ bastion start --port 8080 -- python agent.py
 ## Getting Help
 
 - 📖 [Troubleshooting Guide](/cli/troubleshooting)
-- 💬 [GitHub Discussions](https://github.com/bastion/bastion/discussions)
-- 🐛 [Report an Issue](https://github.com/bastion/bastion/issues)
-- 📧 Email: support@bastion.ai
+- 💬 [GitHub Discussions](https://github.com/Legatia/Bastion/discussions)
+- 🐛 [Report an Issue](https://github.com/Legatia/Bastion/issues)
+- 📧 Email: bastion.feedback@legatia.solutions

@@ -45,7 +45,7 @@ export default function Home() {
             background: '#fff', color: '#000', padding: '1rem 2rem', borderRadius: '8px',
             textDecoration: 'none', fontWeight: 'bold', fontSize: '1.1rem'
           }}>Launch App</Link>
-          <a href="https://github.com/Legatia/Bastion#readme" target="_blank" rel="noopener noreferrer" style={{
+          <a href="https://bastion-docs.vercel.app" target="_blank" rel="noopener noreferrer" style={{
             background: 'transparent', color: '#fff', padding: '1rem 2rem', borderRadius: '8px',
             textDecoration: 'none', fontWeight: 'bold', fontSize: '1.1rem', border: '1px solid rgba(255,255,255,0.2)'
           }}>Documentation</a>

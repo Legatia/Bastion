@@ -58,7 +58,7 @@ export default function Navbar() {
                 <Link href="/referrals" style={{ color: isActive('/referrals') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/referrals') ? '600' : '400' }}>
                     Referrals
                 </Link>
-                <a href="https://github.com/Legatia/Bastion#readme" target="_blank" rel="noopener noreferrer" style={{ color: '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '400' }}>
+                <a href="https://bastion-docs.vercel.app" target="_blank" rel="noopener noreferrer" style={{ color: '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '400' }}>
                     Docs
                 </a>
                 <Link href="/billing" style={{ color: isActive('/billing') ? '#fff' : '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive('/billing') ? '600' : '400' }}>

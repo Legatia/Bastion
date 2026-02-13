@@ -4,31 +4,37 @@ The Bastion CLI is a Rust-based command-line tool that provides the local proxy 
 
 ## Installation
 
+### Quick Install (macOS / Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash
+```
+
 ### From Source
 
 ```bash
-git clone https://github.com/bastion/bastion.git
-cd bastion/cli
+git clone https://github.com/Legatia/Bastion.git
+cd Bastion/cli
 cargo install --path .
 ```
 
 ### Pre-built Binaries
 
-Download from [releases page](https://github.com/bastion/bastion/releases):
+Download from [releases page](https://github.com/Legatia/Bastion/releases):
 
 ```bash
 # macOS (ARM64)
-curl -L https://github.com/bastion/bastion/releases/latest/download/bastion-macos-arm64 -o bastion
+curl -L https://github.com/Legatia/Bastion/releases/latest/download/bastion-macos-arm64 -o bastion
 chmod +x bastion
 sudo mv bastion /usr/local/bin/
 
 # macOS (Intel)
-curl -L https://github.com/bastion/bastion/releases/latest/download/bastion-macos-x64 -o bastion
+curl -L https://github.com/Legatia/Bastion/releases/latest/download/bastion-macos-x64 -o bastion
 chmod +x bastion
 sudo mv bastion /usr/local/bin/
 
 # Linux
-curl -L https://github.com/bastion/bastion/releases/latest/download/bastion-linux-x64 -o bastion
+curl -L https://github.com/Legatia/Bastion/releases/latest/download/bastion-linux-x64 -o bastion
 chmod +x bastion
 sudo mv bastion /usr/local/bin/
 ```
@@ -262,6 +268,6 @@ bastion stop
 ## Next Steps
 
 - [Commands Reference](/cli/commands) - All CLI commands
-- [Configuration](/cli/configuration) - Advanced config options
-- [Daemon Management](/cli/daemon-management) - Background operations
+- [MoltMind Monitoring](/cli/moltmind) - Behavioral baselines and alerts
+- [On-Chain Identity](/cli/identity) - ERC-8004 registration
 - [Troubleshooting](/cli/troubleshooting) - Common issues

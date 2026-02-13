@@ -42,21 +42,21 @@ npm run preview
 ```
 docs/
 ├── .vitepress/          # VitePress configuration
-│   └── config.js        # Site config and theme
+│   └── config.mjs       # Site config and theme
 ├── index.md             # Homepage
 ├── getting-started.md   # Getting started guide
 ├── quick-start.md       # Quick start guide
 ├── cli/                 # CLI documentation
 │   ├── overview.md
 │   ├── commands.md
-│   ├── daemon-management.md
-│   ├── configuration.md
+│   ├── moltmind.md
+│   ├── identity.md
+│   ├── wallet.md
 │   └── troubleshooting.md
 ├── concepts/            # Core concepts
-│   ├── how-it-works.md
-│   ├── architecture.md
-│   ├── policies.md
-│   └── security.md
+│   └── how-it-works.md
+├── desktop/             # Desktop app documentation
+│   └── overview.md
 ├── policies/            # Policy documentation
 │   ├── overview.md
 │   ├── spending-limits.md
@@ -65,18 +65,14 @@ docs/
 │   ├── dlp.md
 │   ├── time-windows.md
 │   ├── allow-block-lists.md
+│   ├── pattern-matching.md
 │   └── webhooks.md
-├── guides/              # How-to guides
-│   ├── first-agent.md
-│   ├── production.md
-│   ├── policy-examples.md
-│   ├── testing.md
-│   └── monitoring.md
-└── api/                 # API reference
-    ├── reference.md
-    ├── authorize.md
-    ├── audit.md
-    └── stats.md
+└── guides/              # How-to guides and integrations
+    ├── first-agent.md
+    ├── openclaw-integration.md
+    ├── langchain-integration.md
+    ├── crewai-integration.md
+    └── autogpt-integration.md
 ```
 
 ## Deployment

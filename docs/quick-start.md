@@ -5,10 +5,8 @@ Protect your first AI agent in 2 minutes.
 ## Installation
 
 ```bash
-# Clone and install
-git clone https://github.com/bastion/bastion.git
-cd bastion/cli
-cargo install --path .
+# One-line install (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash
 ```
 
 ## Setup

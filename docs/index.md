@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Bastion
-  text: Programmable Firewall for AI Agents
-  tagline: Protect autonomous systems from dangerous actions without code changes
+  text: Cross-Platform Firewall for AI Agents
+  tagline: Protect autonomous systems with real-time policy enforcement, behavioral monitoring, and on-chain identity.
   image:
     src: /logo.svg
     alt: Bastion
@@ -14,32 +14,32 @@ hero:
       link: /getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/bastion/bastion
+      link: https://github.com/Legatia/Bastion
 
 features:
   - icon: 🛡️
     title: Zero Code Changes
-    details: Add security to any AI agent without modifying your application code. Just wrap your agent with Bastion's proxy.
+    details: Add security to any AI agent without modifying your application code. Use our CLI proxy or the native Desktop App.
+
+  - icon: 🧠
+    title: MoltMind Monitoring
+    details: Behavioral baselines and anomaly detection. Detect when your agents drift from their intended purpose or exhibit risky patterns.
+
+  - icon: 🆔
+    title: On-Chain Identity
+    details: ERC-8004 registration on Base. Give your agents verifiable, decentralised identity for trustless agent-to-agent interactions.
 
   - icon: ⚡
     title: Real-Time Protection
-    details: Every action is evaluated against your policies before execution. Blocks happen instantly, preventing damage before it occurs.
+    details: Every action is evaluated against policies (DLP, rate limits, spending caps) before execution. Blocks happen in sub-50ms.
 
   - icon: 📊
-    title: Complete Visibility
-    details: Immutable audit trail of every action, allowed or blocked. Track agent behavior and policy effectiveness.
+    title: Multi-Platform
+    details: Manage agents from the CLI on your server or with our premium Desktop App for Mac, Linux, and Windows.
 
   - icon: 🔧
     title: Flexible Policies
-    details: Spending limits, rate limiting, DLP, time windows, allow/block lists, and custom webhooks. Build policies for any use case.
-
-  - icon: 🚀
-    title: Production Ready
-    details: Daemon mode, graceful shutdown, log rotation, and comprehensive monitoring. Built for reliability.
-
-  - icon: 🎯
-    title: Fail-Open Design
-    details: If Bastion can't reach the backend, agents continue running. Reliability over false positives.
+    details: 30+ DLP patterns, spending limits, rate limiting, and custom webhooks. Build policies for any use case in seconds.
 
 ---
 
@@ -143,6 +143,19 @@ Rate limit API calls. Block malicious domains. Enforce spending budgets. Prevent
 - Block rate tracking
 - Custom alerting (coming soon)
 
+## Choose Your Platform
+
+Bastion offers two ways to protect your agents, tailored to your environment.
+
+| Feature | Bastion CLI | Bastion Desktop |
+| :--- | :--- | :--- |
+| **Best For** | Servers, CI/CD, Production | Local Dev, Research, Monitoring |
+| **Setup** | `cargo install` | Native Installer (Mac/Win/Linux) |
+| **Interface** | CLI / Dashboard | Native GUI + Dashboard |
+| **Monitoring** | Stdout / Audit Logs | Real-time Health Badges & Alerts |
+| **Identity** | `bastion register` | Identity Management Wizard |
+| **OpenClaw** | Proxy mode | Integrated Install Wizard |
+
 ## Getting Started
 
 Ready to protect your AI agents? Follow our [Getting Started Guide](/getting-started) to install Bastion and secure your first agent in under 5 minutes.
@@ -151,4 +164,4 @@ Ready to protect your AI agents? Follow our [Getting Started Guide](/getting-sta
 
 Bastion is open source and free to use. We believe security for AI agents should be accessible to everyone.
 
-[View on GitHub →](https://github.com/bastion/bastion)
+[View on GitHub →](https://github.com/Legatia/Bastion)

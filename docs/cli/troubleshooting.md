@@ -614,15 +614,15 @@ If you're still stuck:
    ```
 
 3. Report issue:
-   - [GitHub Issues](https://github.com/bastion/bastion/issues)
+   - [GitHub Issues](https://github.com/Legatia/Bastion/issues)
    - Include `debug.txt`
    - Describe what you were trying to do
    - Provide error messages
 
 ### Community Support
 
-- 💬 [GitHub Discussions](https://github.com/bastion/bastion/discussions)
-- 📧 Email: support@bastion.ai
+- 💬 [GitHub Discussions](https://github.com/Legatia/Bastion/discussions)
+- 📧 Email: bastion.feedback@legatia.solutions
 - 🐦 Twitter: [@bastionprotocol](https://twitter.com/bastionprotocol)
 
 ---
