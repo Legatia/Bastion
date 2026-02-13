@@ -282,7 +282,7 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
                                 </p>
 
                                 <button
-                                    onClick={() => open('http://localhost:3000/auth/desktop-callback')}
+                                    onClick={() => open('https://bastion.legatia.solutions/auth/desktop-callback')}
                                     className="px-8 py-3 bg-white text-black hover:bg-zinc-200 font-bold rounded-full flex items-center gap-2 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
                                 >
                                     <Zap size={20} className="fill-black" /> Connect to Bastion
@@ -297,7 +297,7 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
                                     Back
                                 </button>
                                 {/* Dev backdoor to skip auth if needed */}
-                                {process.env.NODE_ENV === 'development' && (
+                                {import.meta.env.MODE === 'development' && (
                                     <button onClick={() => setStep('config')} className="text-xs text-zinc-800 hover:text-zinc-700">Skip</button>
                                 )}
                             </div>

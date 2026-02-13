@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-appbastion-desktop",
+  "productName": "Bastion",
   "version": "0.1.0",
   "identifier": "com.legatia.bastion-desktop",
   "build": {
@@ -65,8 +65,15 @@
     "updater": {
       "pubkey": "",
       "endpoints": [
-        "https://github.com/YOUR_ORG/bastion-desktop/releases/latest/download/latest.json"
+        "https://github.com/Legatia/Bastion/releases/latest/download/latest.json"
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "bastion"
+        ]
+      }
     }
   }
 }

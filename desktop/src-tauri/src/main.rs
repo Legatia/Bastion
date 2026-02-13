@@ -29,6 +29,33 @@ fn main() {
             #[cfg(desktop)]
             app.deep_link().register_all()?;
 
+            // Listen for deep link events (e.g. bastion://checkout-success?tier=pro)
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                let urls = event.urls();
+                for url in urls {
+                    let url_str = url.as_str();
+                    if url_str.contains("checkout-success") {
+                        // Extract query params and navigate the webview
+                        if let Some(window) = handle.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            // Parse tier from URL if present
+                            let tier = url.query_pairs()
+                                .find(|(k, _)| k == "tier")
+                                .map(|(_, v)| v.to_string())
+                                .unwrap_or_default();
+                            let nav_url = if tier.is_empty() {
+                                "/success".to_string()
+                            } else {
+                                format!("/success?tier={}", tier)
+                            };
+                            let _ = window.eval(&format!("window.location.href = '{}';", nav_url));
+                        }
+                    }
+                }
+            });
+
             // Create tray menu
             let show_item = MenuItem::with_id(app, "show", "Show Dashboard", true, None::<&str>)?;
             let proxy_item = MenuItem::with_id(app, "toggle_proxy", "Toggle Proxy", true, None::<&str>)?;
@@ -38,7 +65,7 @@ fn main() {
             
             // Build tray icon
             let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(app.default_window_icon().expect("app icon must be set in tauri.conf.json").clone())
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {

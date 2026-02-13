@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const host = process.env.TAURI_DEV_HOST;
+const host = typeof process !== 'undefined' ? process.env.TAURI_DEV_HOST : undefined;
 
 import tailwindcss from '@tailwindcss/vite';
 
