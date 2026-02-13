@@ -2,7 +2,13 @@
 # Bastion CLI Installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash
 
-set -e
+set -euo pipefail
+
+# Clean up temp files on failure
+cleanup() {
+    rm -f /tmp/bastion_install.tar.gz
+}
+trap cleanup EXIT
 
 # Colors for output
 RED='\033[0;31m'
@@ -64,29 +70,6 @@ esac
 
 echo -e "${BLUE}Detected platform: $PLATFORM ($ARCH_NAME)${NC}"
 
-# Check if Node.js is installed
-if ! command -v node &> /dev/null; then
-    echo -e "${RED}Error: Node.js is not installed${NC}"
-    echo "Please install Node.js from https://nodejs.org/"
-    exit 1
-fi
-
-NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    echo -e "${YELLOW}Warning: Node.js version 18 or higher is recommended${NC}"
-    echo "Current version: $(node -v)"
-fi
-
-# Check if Python 3 is installed (required for proxy)
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}Error: Python 3 is not installed${NC}"
-    echo "Please install Python 3 from https://python.org/"
-    exit 1
-fi
-
-PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-echo -e "${BLUE}Python version: $PYTHON_VERSION${NC}"
-
 # Install directory
 INSTALL_DIR="$HOME/.bastion"
 BIN_DIR="$HOME/.bastion/bin"
@@ -97,6 +80,13 @@ echo -e "\n${GREEN}Installing Bastion to: $INSTALL_DIR${NC}"
 # Create installation directory
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$BIN_DIR"
+
+# Check for existing installation
+if [ -f "$BIN_DIR/bastion" ]; then
+    EXISTING_VERSION=$("$BIN_DIR/bastion" --version 2>/dev/null || echo "unknown")
+    echo -e "${YELLOW}Existing installation detected: $EXISTING_VERSION${NC}"
+    echo -e "${YELLOW}Upgrading...${NC}"
+fi
 
 # Download Release
 REPO="Legatia/Bastion"
@@ -145,8 +135,12 @@ fi
 
 # Extract
 echo -e "${BLUE}Extracting...${NC}"
-tar -xzf "$TMP_FILE" -C "$BIN_DIR"
-rm "$TMP_FILE"
+if ! tar -xzf "$TMP_FILE" -C "$BIN_DIR"; then
+    echo -e "${RED}Error: Failed to extract archive. The download may be corrupt.${NC}"
+    rm -f "$TMP_FILE"
+    exit 1
+fi
+rm -f "$TMP_FILE"
 
 # Handle legacy binary name if necessary
 if [ -f "$BIN_DIR/bastion-cli" ] && [ ! -f "$BIN_DIR/bastion" ]; then
@@ -154,6 +148,13 @@ if [ -f "$BIN_DIR/bastion-cli" ] && [ ! -f "$BIN_DIR/bastion" ]; then
 fi
 
 chmod +x "$BIN_DIR/bastion"
+
+# Verify binary works
+if ! "$BIN_DIR/bastion" --version &>/dev/null; then
+    echo -e "${RED}Error: Installed binary failed verification. It may be incompatible with your system.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Binary verified${NC}"
 
 # Add to PATH
 SHELL_RC=""
@@ -174,22 +175,15 @@ if [ -n "$SHELL_RC" ]; then
     fi
 fi
 
-# Install Python dependencies
-echo -e "\n${BLUE}Installing Python dependencies...${NC}"
-pip3 install requests --quiet 2>/dev/null || echo -e "${YELLOW}Warning: Could not install Python requests library${NC}"
-
 echo -e "\n${GREEN}╔══════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║   ✓ Bastion installed successfully!      ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════╝${NC}"
 
 echo -e "\n${BLUE}Next steps:${NC}"
 echo -e "  1. Reload your shell: ${YELLOW}source $SHELL_RC${NC}"
-echo -e "  2. Login to Bastion:  ${YELLOW}bastion login${NC}"
-echo -e "  3. Initialize Agent:  ${YELLOW}bastion init${NC}"
-echo -e "  4. Start the proxy:    ${YELLOW}bastion start${NC}"
-echo -e "\n${BLUE}To route your existing bots through Bastion, set these in their terminal:${NC}"
-echo -e "  ${YELLOW}export HTTP_PROXY=http://localhost:3000${NC}"
-echo -e "  ${YELLOW}export HTTPS_PROXY=http://localhost:3000${NC}"
-echo ""
+echo -e "  2. Run:               ${YELLOW}bastion login${NC}"
+echo -e ""
+echo -e "${BLUE}That's it. Login will walk you through agent setup and start the proxy.${NC}"
+echo -e ""
 echo -e "${BLUE}Get your API key at: ${YELLOW}https://bastion.legatia.solutions/profile${NC}"
 echo ""

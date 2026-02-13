@@ -1,27 +1,28 @@
 <div align="center">
   <img src="logo.png" alt="Bastion" width="200"/>
 
-  # Bastion
+  # Bastion Protocol
 
-  ### The Security Layer for Autonomous AI Agents
+  ### Runtime security for AI agents
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
+  [![Rust](https://img.shields.io/badge/Rust-CLI-orange)](https://www.rust-lang.org/)
 
 </div>
 
 ---
 
-## What is Bastion?
+## What is Bastion Protocol?
 
-Bastion is a policy engine, identity layer, and cognitive monitor for AI agents. It sits between your agent and the outside world, enforcing security policies in real time.
+Bastion Protocol is the security layer for autonomous AI agents. It sits between your agent and the outside world as an HTTP proxy, enforcing security policies in real time. Zero code changes. Sub-50ms latency.
 
-- **Policy Engine** -- 9 policy types (DLP, rate limits, spending caps, blocklists, time windows, etc.)
-- **On-Chain Identity (ERC-8004)** -- Register agents on Base with verifiable identity and reputation attestations
-- **MoltMind Cognitive Monitor** -- Behavioral drift detection, health scoring, and anomaly alerts
-- **CDP Wallets** -- Coinbase-managed wallets for agent-native payments and x402 support
+- **Policy Engine** — 9 policy types (DLP, rate limits, spending caps, blocklists, time windows, etc.) with 30+ built-in detection patterns
+- **On-Chain Identity (ERC-8004)** — Register agents on Base with verifiable identity and reputation scores
+- **MoltMind Behavioral Monitor** — Statistical baselines, drift detection, health scoring, and anomaly alerts
+- **CDP Wallets** — Coinbase-managed wallets for agent transactions and x402 support
 
-**Works with any agent framework.** OpenClaw, LangChain, CrewAI, LangGraph, AutoGPT -- anything that makes HTTP requests.
+**Works with any agent framework.** LangChain, CrewAI, LangGraph, AutoGPT, OpenClaw — anything that makes HTTP requests.
 
 ---
 
@@ -48,8 +49,11 @@ integrations/     Framework examples (CrewAI, LangGraph, ERC-8004 verifier)
 | `cdp-wallet-service` | Coinbase Developer Platform wallet provisioning |
 | `baselineEngine` | Calculates behavioral baselines per agent |
 | `driftDetector` | Detects cognitive drift and generates health scores |
+| `behavioralCollector` | Collects and stores agent behavioral data |
 | `moltmind-scheduler` | Background jobs: drift detection (1h), baseline recalculation (24h), data cleanup (24h) |
 | `billing-service` | Tier-based invoice calculation with coupon/discount support |
+| `coupon-manager` | Referral coupons with monthly usage limits |
+| `encryption-service` | AES-256-GCM encrypted audit logs (zero-knowledge) |
 
 ---
 
@@ -74,27 +78,64 @@ Billing is handled via Stripe. Manage your subscription from the dashboard or th
 
 ## Quick Start
 
-### CLI Install
+### 1. Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash
-bastion login     # Authenticate with your API key
-bastion init      # Register your agent
-bastion start     # Proxy runs on localhost:3000
 ```
 
-### Get an API Key
+### 2. Login
 
-Sign up at [bastion.legatia.solutions](https://bastion.legatia.solutions) and copy your API key from the profile page.
+Get an API key at [bastion.legatia.solutions/profile](https://bastion.legatia.solutions/profile), then:
 
-### Point Your Agent
+```bash
+bastion login     # Paste your API key — auto-chains into agent setup
+```
 
-```python
-# Set the proxy for any HTTP-based agent
+### 3. Start the proxy
+
+```bash
+bastion start                          # Foreground on localhost:3000
+bastion start --daemon                 # Background mode
+bastion start -- python agent.py       # Launch agent with proxy env auto-set
+```
+
+### 4. Point your agent
+
+```bash
 export HTTP_PROXY=http://localhost:3000
+export HTTPS_PROXY=http://localhost:3000
 ```
 
 Every outbound request now goes through Bastion's policy engine.
+
+---
+
+## CLI Commands
+
+| Command | Tier | Description |
+|---------|------|-------------|
+| `bastion login` | FREE | Authenticate with API key (chains into init) |
+| `bastion init` | FREE | Register an agent in the current directory |
+| `bastion start` | FREE | Start the local supervisor proxy |
+| `bastion stop` | FREE | Stop the running daemon |
+| `bastion status` | FREE | Check daemon status |
+| `bastion logs` | FREE | View daemon logs (`-f` to follow) |
+| `bastion restart` | FREE | Restart the daemon |
+| `bastion list` | FREE | List all registered agents |
+| `bastion config` | FREE | View/update agent configuration |
+| `bastion policy` | FREE | Manage security policies (list/create/toggle/delete) |
+| `bastion audit` | FREE | View audit log of agent actions |
+| `bastion stats` | FREE | Show usage statistics |
+| `bastion test` | FREE | Dry-run a policy check |
+| `bastion validate` | FREE | Validate configuration files |
+| `bastion health` | FREE | Check backend connectivity |
+| `bastion update` | FREE | Self-update to latest version |
+| `bastion delete` | FREE | Delete an agent |
+| `bastion wallet` | STARTER+ | Show CDP wallet address and balances |
+| `bastion verify` | STARTER+ | Prepare ERC-8004 on-chain registration tx |
+| `bastion register` | STARTER+ | Register agent on-chain via CDP wallet (automated) |
+| `bastion moltmind` | STARTER+ | Behavioral monitoring (health, alerts, baselines, analysis) |
 
 ---
 
@@ -173,20 +214,24 @@ See [`backend/.env.example`](./backend/.env.example) for the full list. Key vari
 | `STRIPE_PRICE_ID_OPENCLAW` | Production | Stripe Price ID for OpenClaw one-time |
 | `BACKEND_URL` | Production | Public backend URL (for ERC-8004 agent URIs) |
 | `FRONTEND_URL` | Production | Dashboard URL (for Stripe redirects) |
-| `CDP_API_KEY_NAME` | Optional | Coinbase Developer Platform API key |
-| `CDP_API_KEY_PRIVATE_KEY` | Optional | Coinbase Developer Platform private key |
+| `CDP_API_KEY_ID` | Optional | Coinbase Developer Platform API key ID |
+| `CDP_API_KEY_SECRET` | Optional | Coinbase Developer Platform API key secret |
+| `CDP_WALLET_SECRET` | Optional | Coinbase Developer Platform wallet secret |
 | `ENCRYPTION_KEY` | Recommended | AES-256 key for audit log encryption |
 
 ---
 
 ## Security
 
-- AES-256-GCM encrypted audit logs
+- AES-256-GCM encrypted audit logs (zero-knowledge — Bastion cannot decrypt)
+- Fail-closed policy enforcement (blocks traffic when backend is unreachable)
+- Config file permissions restricted to owner (0600 on Unix)
 - Rate limiting on all endpoints (auth, authorize, webhooks, policies)
 - Stripe webhook signature verification with idempotency tracking
 - CORS whitelist (no wildcards)
 - HMAC-SHA256 webhook verification
 - DLP scanner with 30+ built-in patterns for PII, secrets, and API keys
+- Cryptographically random referral codes
 
 ---
 
@@ -213,6 +258,6 @@ We welcome contributions in:
 
 <div align="center">
 
-**MIT Licensed** | Self-host for free | Or use the hosted service at [bastion.legatia.solutions](https://bastion.legatia.solutions)
+**MIT Licensed** | Built by [Legatia](https://legatia.solutions) | Hosted service at [bastion.legatia.solutions](https://bastion.legatia.solutions)
 
 </div>
