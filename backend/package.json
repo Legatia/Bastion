@@ -39,6 +39,9 @@
     "winston": "^3.17.0",
     "zod": "^3.23.8"
   },
+  "overrides": {
+    "jose": "^4.15.0"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",

@@ -14,7 +14,7 @@ export class StripeService {
                 throw new Error('STRIPE_SECRET_KEY not configured');
             }
             this.stripe = new Stripe(secretKey, {
-                apiVersion: '2025-02-24.acacia' as any,
+                apiVersion: '2025-05-28.basil' as any,
             });
         }
         return this.stripe;
