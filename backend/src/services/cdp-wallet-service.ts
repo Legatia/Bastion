@@ -1,7 +1,6 @@
 // CDP Server Wallet v2 Integration Service
 // Handles wallet provisioning, transactions, and balance queries via Coinbase Developer Platform
 
-import { CdpClient } from '@coinbase/cdp-sdk';
 import { prisma } from '../lib/prisma';
 import { logger } from '../middleware/logger';
 import type { Hex } from 'viem';
@@ -13,13 +12,14 @@ type CdpFaucetNetwork = 'base-sepolia' | 'ethereum-sepolia';
 type CdpFaucetToken = 'eth' | 'usdc' | 'eurc' | 'cbbtc';
 
 export class CdpWalletService {
-    private static cdp: CdpClient;
+    private static cdp: any;
 
-    private static getClient(): CdpClient {
+    private static async getClient(): Promise<any> {
         if (!this.cdp) {
             if (!process.env.CDP_API_KEY_ID || !process.env.CDP_API_KEY_SECRET || !process.env.CDP_WALLET_SECRET) {
                 throw new Error('CDP environment variables not configured (CDP_API_KEY_ID, CDP_API_KEY_SECRET, CDP_WALLET_SECRET)');
             }
+            const { CdpClient } = await import('@coinbase/cdp-sdk');
             this.cdp = new CdpClient();
         }
         return this.cdp;
@@ -30,7 +30,7 @@ export class CdpWalletService {
      * Uses named accounts ("bastion-agent-{uuid}") for idempotent/crash-safe provisioning.
      */
     static async provisionWallet(agentId: string): Promise<string> {
-        const cdp = this.getClient();
+        const cdp = await this.getClient();
         const accountName = `bastion-agent-${agentId}`;
 
         const account = await cdp.evm.getOrCreateAccount({ name: accountName });
@@ -79,7 +79,7 @@ export class CdpWalletService {
         value?: bigint;
         network: string;
     }): Promise<{ transactionHash: Hex }> {
-        const cdp = this.getClient();
+        const cdp = await this.getClient();
 
         const agent = await prisma.agent.findUnique({
             where: { id: params.agentId },
@@ -113,7 +113,7 @@ export class CdpWalletService {
      * Get token balances for an agent's CDP wallet.
      */
     static async getBalances(agentId: string, network: string) {
-        const cdp = this.getClient();
+        const cdp = await this.getClient();
 
         const agent = await prisma.agent.findUnique({
             where: { id: agentId },
@@ -145,7 +145,7 @@ export class CdpWalletService {
             throw new Error('Faucet is only available on sepolia testnet networks');
         }
 
-        const cdp = this.getClient();
+        const cdp = await this.getClient();
 
         const agent = await prisma.agent.findUnique({
             where: { id: agentId },
