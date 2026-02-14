@@ -356,15 +356,12 @@ bastion enable --agent <AGENT_TYPE> [--port <PORT>] [--configure-only]
 ```
 
 **Options:**
-- `--agent <TYPE>` - Agent type to configure: `openclaw`, `autogpt`, or `langchain`
+- `--agent <TYPE>` - Agent type to configure: `autogpt`, `langchain`, or any supported framework
 - `--port <PORT>` - Port for Bastion proxy (default: 3000)
 - `--configure-only` - Only update configuration files without starting daemon
 
 **Examples:**
 ```bash
-# Enable Bastion for OpenClaw agent
-bastion enable --agent openclaw
-
 # Configure AutoGPT with custom port
 bastion enable --agent autogpt --port 8080
 
@@ -376,10 +373,10 @@ bastion enable --agent langchain --configure-only
 ```
 🛡️  Enabling Bastion Protection
 
-Agent: openclaw
+Agent: autogpt
 Proxy Port: 3000
 
-✓ Updated openclaw configuration
+✓ Updated agent configuration
 ✓ Added proxy settings to config file
 ✓ Starting Bastion daemon...
 ✅ Bastion enabled successfully
@@ -389,9 +386,11 @@ Your agent is now protected. Start it normally.
 
 **What it does:**
 - Modifies agent configuration files to use Bastion proxy
-- For **OpenClaw**: Updates config with `httpProxy` and `httpsProxy` settings
-- For **AutoGPT/LangChain**: Sets environment variables
+- For **AutoGPT/LangChain**: Updates config files with proxy settings
+- For **other frameworks**: Sets environment variables
 - Optionally starts Bastion daemon in background
+
+**Note:** Most agents work without `bastion enable` — just use `bastion start -- <your-agent-command>` which sets proxy env automatically.
 
 ---
 
@@ -405,22 +404,22 @@ bastion disable --agent <AGENT_TYPE>
 ```
 
 **Options:**
-- `--agent <TYPE>` - Agent type to unconfigure: `openclaw`, `autogpt`, or `langchain`
+- `--agent <TYPE>` - Agent type to unconfigure: `autogpt`, `langchain`, or any supported framework
 
 **Examples:**
 ```bash
-# Disable Bastion for OpenClaw
-bastion disable --agent openclaw
-
 # Disable Bastion for AutoGPT
 bastion disable --agent autogpt
+
+# Disable Bastion for LangChain
+bastion disable --agent langchain
 ```
 
 **Output:**
 ```
 🛡️  Disabling Bastion Protection
 
-Agent: openclaw
+Agent: autogpt
 
 ✓ Removed proxy settings from config
 ✅ Bastion disabled successfully
@@ -887,8 +886,8 @@ Latest version: 0.2.0
 |---------|---------|--------------|
 | `bastion login` | Authenticate | `bastion login --key bst_xxx` |
 | `bastion init` | Setup agent | `bastion init` |
-| `bastion enable` | Auto-configure agent | `bastion enable --agent openclaw` |
-| `bastion disable` | Remove Bastion config | `bastion disable --agent openclaw` |
+| `bastion enable` | Auto-configure agent | `bastion enable --agent autogpt` |
+| `bastion disable` | Remove Bastion config | `bastion disable --agent autogpt` |
 | `bastion start` | Run agent | `bastion start -- python agent.py` |
 | `bastion stop` | Stop daemon | `bastion stop` |
 | `bastion status` | Check status | `bastion status` |

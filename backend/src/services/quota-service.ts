@@ -39,7 +39,7 @@ export class QuotaService {
             return { allowed: cached.allowed, message: cached.message };
         }
 
-        // OpenClaw is special-cased via user flag
+        // Agent Runtime is special-cased via user flag (stored as openclawPurchased for backward compat)
         if (feature === 'OPENCLAW') {
             const user = await prisma.user.findUnique({
                 where: { id: userId },
@@ -47,7 +47,7 @@ export class QuotaService {
             });
             const result = user?.openclawPurchased
                 ? { allowed: true }
-                : { allowed: false, message: 'OpenClaw license not purchased. Purchase for $99 one-time.' };
+                : { allowed: false, message: 'Agent Runtime license not purchased. Available as $99 one-time add-on.' };
             featureCache.set(cacheKey, { ...result, cachedAt: Date.now() });
             return result;
         }

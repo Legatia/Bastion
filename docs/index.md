@@ -154,7 +154,7 @@ Bastion offers two ways to protect your agents, tailored to your environment.
 | **Interface** | CLI / Dashboard | Native GUI + Dashboard |
 | **Monitoring** | Stdout / Audit Logs | Real-time Health Badges & Alerts |
 | **Identity** | `bastion register` | Identity Management Wizard |
-| **OpenClaw** | Proxy mode | Integrated Install Wizard |
+| **Agent Setup** | `bastion start -- <cmd>` | Integrated Install Wizard |
 
 ## Getting Started
 

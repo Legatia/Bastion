@@ -94,7 +94,7 @@ export default function Dashboard() {
                             <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
                             <span className="text-xl font-bold">Active</span>
                         </div>
-                        <p className="text-sm text-zinc-500">OpenClaw runtime running</p>
+                        <p className="text-sm text-zinc-500">Agent runtime active</p>
                     </div>
 
                     {/* Identity Card */}

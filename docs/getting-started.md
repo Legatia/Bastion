@@ -13,7 +13,7 @@ Get your first AI agent protected with Bastion in under 5 minutes.
 If you want to get started with a visual interface and zero terminal setup, download the **Bastion Desktop App**.
 
 1.  **Download** the installer for your OS ([Mac](https://github.com/Legatia/Bastion/releases) / [Windows](https://github.com/Legatia/Bastion/releases) / [Linux](https://github.com/Legatia/Bastion/releases)).
-2.  **Run the Install Wizard** — it will handle OpenClaw installation, proxy setup, and API key configuration for you.
+2.  **Run the Install Wizard** — it will handle agent runtime setup, proxy configuration, and API key entry for you.
 3.  **Start Protecting** — manage your agents, policies, and identity from the native dashboard.
 
 ---
@@ -100,22 +100,20 @@ Backend URL: https://bastion-gamma.vercel.app/v1
 Next step: Run `bastion init` in your agent directory
 ```
 
-## Quick Path: Using OpenClaw?
+## Works with Any Agent
 
-**If you're using OpenClaw**, skip to the one-command setup instead:
+Bastion protects **any agent that makes HTTP/HTTPS requests** — LangChain, CrewAI, AutoGPT, custom agents, or anything else. Just route traffic through the proxy:
 
 ```bash
-bastion enable --agent openclaw
+# Option 1: Launch with Bastion (sets proxy env automatically)
+bastion start -- python agent.py
+
+# Option 2: Set proxy env manually
+export HTTP_PROXY=http://localhost:3000
+export HTTPS_PROXY=http://localhost:3000
 ```
 
-This automatically:
-1. ✅ Configures `~/.openclaw/openclaw.json` with proxy settings
-2. ✅ Starts Bastion daemon in background
-3. ✅ Creates backup of original config
-
-Then just run `openclaw` normally - it's fully protected!
-
-**[→ View full OpenClaw integration guide](/guides/openclaw-integration)**
+**[→ View full integration guide](/guides/openclaw-integration)**
 
 ---
 

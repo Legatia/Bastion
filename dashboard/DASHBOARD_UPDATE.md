@@ -206,7 +206,7 @@ netlify deploy --prod
 
 ## Next Steps
 
-1. **Testing**: Test with real OpenClaw integration
+1. **Testing**: Test with real agent integration
 2. **Documentation**: Add in-app help tooltips
 3. **Validation**: Add form validation for invalid configurations
 4. **Analytics**: Show which patterns are triggering most blocks
@@ -215,8 +215,7 @@ netlify deploy --prod
 ## Questions?
 
 - Backend API: See `/backend/TESTING.md`
-- Production Setup: See `/PRODUCTION_SETUP.md`
-- OpenClaw Integration: See `/OPENCLAW_INTEGRATION.md`
+- Agent Integration: See `/docs/guides/openclaw-integration.md`
 
 ---
 

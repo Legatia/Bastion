@@ -6,7 +6,7 @@ A one-click desktop application for managing AI agent infrastructure with modula
 
 | Module | Description | Pricing |
 |--------|-------------|---------|
-| **OpenClaw** | AI agent runtime manager | Base tier |
+| **Agent Runtime** | AI agent process lifecycle manager | Base tier |
 | **ERC-8004** | On-chain identity verification | +$5/mo |
 | **Bastion Proxy** | Security policy enforcement | +$10/mo |
 | **MoltMind** | Cognitive monitoring & health checks | +$15/mo |
@@ -49,7 +49,7 @@ desktop/
 │   └── src/
 │       ├── main.rs         # App entry + system tray
 │       └── modules/
-│           ├── openclaw.rs # Runtime process management
+│           ├── openclaw.rs # Agent runtime process management
 │           ├── bastion.rs  # Proxy server integration
 │           ├── identity.rs # ERC-8004 verification
 │           ├── moltmind.rs # Behavioral monitoring
@@ -114,7 +114,7 @@ Agent processes run with enforced `HTTP_PROXY` environment variables pointing to
 
 ### Module State
 Each module has its own Tauri-managed state:
-- `OpenClawState` - Process PID tracking
+- `OpenClawState` - Agent runtime process PID tracking
 - `BastionState` - Proxy server handle
 - `MoltMindState` - Event buffer (ring buffer, max 100 entries)
 

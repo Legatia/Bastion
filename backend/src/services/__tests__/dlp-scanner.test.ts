@@ -452,7 +452,7 @@ describe('DLPScanner', () => {
   });
 
   describe('Real-World Scenarios', () => {
-    it('should detect OpenClaw sending API key in message', () => {
+    it('should detect agent sending API key in message', () => {
       const chatMessage = {
         type: 'http_request',
         details: {

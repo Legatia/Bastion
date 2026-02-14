@@ -22,7 +22,7 @@ Bastion Protocol is the security layer for autonomous AI agents. It sits between
 - **MoltMind Behavioral Monitor** — Statistical baselines, drift detection, health scoring, and anomaly alerts
 - **CDP Wallets** — Coinbase-managed wallets for agent transactions and x402 support
 
-**Works with any agent framework.** LangChain, CrewAI, LangGraph, AutoGPT, OpenClaw — anything that makes HTTP requests.
+**Works with any agent framework.** LangChain, CrewAI, LangGraph, AutoGPT — anything that makes HTTP requests. No SDK or code changes needed.
 
 ---
 
@@ -70,7 +70,7 @@ integrations/     Framework examples (CrewAI, LangGraph, ERC-8004 verifier)
 | MoltMind health score | -- | Yes | Yes | Yes |
 | MoltMind full (alerts, drift, analysis) | -- | -- | Yes | Yes |
 
-**OpenClaw Runtime**: $99 one-time add-on.
+**Agent Runtime Manager**: $99 one-time add-on — desktop process lifecycle management for your agents.
 
 Billing is handled via Stripe. Manage your subscription from the dashboard or the Stripe Customer Portal.
 
@@ -211,7 +211,7 @@ See [`backend/.env.example`](./backend/.env.example) for the full list. Key vari
 | `STRIPE_WEBHOOK_SECRET` | Production | Stripe webhook signing secret |
 | `STRIPE_PRICE_ID_STARTER` | Production | Stripe Price ID for Starter tier |
 | `STRIPE_PRICE_ID_PRO` | Production | Stripe Price ID for Pro tier |
-| `STRIPE_PRICE_ID_OPENCLAW` | Production | Stripe Price ID for OpenClaw one-time |
+| `STRIPE_PRICE_ID_OPENCLAW` | Production | Stripe Price ID for Agent Runtime one-time |
 | `BACKEND_URL` | Production | Public backend URL (for ERC-8004 agent URIs) |
 | `FRONTEND_URL` | Production | Dashboard URL (for Stripe redirects) |
 | `CDP_API_KEY_ID` | Optional | Coinbase Developer Platform API key ID |
@@ -239,7 +239,7 @@ See [`backend/.env.example`](./backend/.env.example) for the full list. Key vari
 
 We welcome contributions in:
 
-- **Integrations** -- LangChain, CrewAI, LangGraph, AutoGPT examples
+- **Integrations** -- LangChain, CrewAI, LangGraph, AutoGPT, and other framework examples
 - **DLP Patterns** -- More detection rules for secrets and PII
 - **Testing** -- Edge cases, security audits
 - **Documentation** -- Guides and tutorials

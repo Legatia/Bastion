@@ -19,7 +19,7 @@ The Bastion backend has comprehensive test coverage for all critical security co
    - HTTP request scanning
    - Redaction functionality
    - Edge cases (null, undefined, unicode, large content)
-   - Real-world scenarios (OpenClaw use cases)
+   - Real-world scenarios (agent use cases)
    - Performance testing
 
 2. **Policy Evaluator Tests** (38 tests)
@@ -128,7 +128,7 @@ Target: 70% global coverage by v1.0 release.
 
 ### 1. Data Leak Prevention
 
-**Test:** OpenClaw sends API key in user message
+**Test:** Agent sends API key in user message
 
 ```typescript
 const chatMessage = {

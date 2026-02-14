@@ -91,7 +91,7 @@ function resolveTierFromSubscription(subscription: Stripe.Subscription): Subscri
 
 /**
  * Handle successful checkout.
- * Sets user.tier from session metadata and handles OpenClaw one-time purchases.
+ * Sets user.tier from session metadata and handles agent runtime one-time purchases.
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const userId = session.client_reference_id;
@@ -124,13 +124,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         updateData.stripeCustomerId = customerId;
     }
 
-    // Check for OpenClaw via metadata on the checkout session
+    // Check for agent runtime add-on via metadata on the checkout session
     if (session.metadata?.includeOpenclaw === 'true') {
         updateData.openclawPurchased = true;
-        logger.info('[STRIPE] OpenClaw activated via metadata', { userId });
+        logger.info('[STRIPE] Agent runtime activated via metadata', { userId });
     }
 
-    // Fallback: check line items for OpenClaw price ID
+    // Fallback: check line items for agent runtime price ID
     if (!updateData.openclawPurchased && process.env.STRIPE_PRICE_ID_OPENCLAW) {
         try {
             const stripe = StripeService.getClient();
@@ -142,11 +142,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
                 const itemPriceId = (item.price as Stripe.Price)?.id;
                 if (itemPriceId === process.env.STRIPE_PRICE_ID_OPENCLAW) {
                     updateData.openclawPurchased = true;
-                    logger.info('[STRIPE] OpenClaw activated via price ID match', { userId });
+                    logger.info('[STRIPE] Agent runtime activated via price ID match', { userId });
                 }
             }
         } catch (err: any) {
-            logger.warn('[STRIPE] Could not check line items for OpenClaw:', { error: err.message });
+            logger.warn('[STRIPE] Could not check line items for agent runtime:', { error: err.message });
         }
     }
 

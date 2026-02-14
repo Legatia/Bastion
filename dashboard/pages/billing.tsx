@@ -359,7 +359,7 @@ export default function Billing() {
                     </table>
                 </div>
 
-                {/* OpenClaw Add-on */}
+                {/* Agent Runtime Add-on */}
                 <div style={{
                     background: 'rgba(255,255,255,0.03)',
                     border: '1px solid rgba(255,255,255,0.1)',
@@ -376,7 +376,7 @@ export default function Billing() {
                             <Cpu size={24} />
                         </div>
                         <div>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>OpenClaw Runtime</h3>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Agent Runtime Manager</h3>
                             <span style={{ fontSize: '0.8rem', color: '#889' }}>
                                 <strong style={{ color: '#fff', fontSize: '1.1rem' }}>$99</strong> one-time add-on
                             </span>
@@ -396,7 +396,7 @@ export default function Billing() {
                         )}
                     </div>
                     <p style={{ color: '#889', fontSize: '0.85rem' }}>
-                        Agent runtime manager. Launch, monitor, and control your AI agents with process lifecycle management.
+                        Launch, monitor, and control your AI agents via the desktop app. Process lifecycle management for any HTTP/HTTPS agent.
                     </p>
                 </div>
 

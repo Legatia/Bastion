@@ -69,7 +69,7 @@ docs/
 │   └── webhooks.md
 └── guides/              # How-to guides and integrations
     ├── first-agent.md
-    ├── openclaw-integration.md
+    ├── openclaw-integration.md  # Agent Integration Guide (generic)
     ├── langchain-integration.md
     ├── crewai-integration.md
     └── autogpt-integration.md

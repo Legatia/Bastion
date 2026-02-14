@@ -8,7 +8,7 @@ While the CLI is perfect for production servers and CI/CD pipelines, the Desktop
 
 - **Visual Monitoring**: See real-time "Health Badges" for every running agent.
 - **Identity Management**: Verifiably register your agents on the Base blockchain (ERC-8004) via an easy-to-use wizard.
-- **Easy Setup**: Install the OpenClaw runtime and Bastion proxy in 60 seconds without touching the terminal.
+- **Easy Setup**: Configure your agent runtime and Bastion proxy in 60 seconds without touching the terminal.
 - **Native Experience**: Deep integration with your OS for alerts, background operation, and tray-based management.
 
 ## Installation
@@ -27,6 +27,6 @@ The Desktop app allows you to create and verify on-chain identities for your age
 
 ### Install Wizard
 A step-by-step assistant that:
-- Downloads and installs the **OpenClaw** runtime.
-- Configures the **Bastion Proxy** for local interception.
+- Configures your **agent runtime** for Bastion protection.
+- Sets up the **Bastion Proxy** for local interception.
 - Syncs your **API Keys** and Policies.

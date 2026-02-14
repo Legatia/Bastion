@@ -88,8 +88,8 @@ router.get('/modules/pricing', async (_req: Request, res: Response) => {
         ],
         addons: [
             {
-                id: 'OPENCLAW',
-                name: 'OpenClaw Runtime',
+                id: 'AGENT_RUNTIME',
+                name: 'Agent Runtime Manager',
                 price: 9900,
                 priceDisplay: '$99',
                 model: 'one_time',
@@ -100,7 +100,7 @@ router.get('/modules/pricing', async (_req: Request, res: Response) => {
 
 /**
  * POST /v1/modules/checkout
- * Create a Stripe Checkout Session for tier subscription (+ optional OpenClaw)
+ * Create a Stripe Checkout Session for tier subscription (+ optional agent runtime add-on)
  */
 router.post('/modules/checkout', authenticateApiKey, async (req: Request, res: Response) => {
     try {
@@ -157,7 +157,7 @@ router.post('/modules/checkout', authenticateApiKey, async (req: Request, res: R
             { price: priceId, quantity: 1 },
         ];
 
-        // Optionally include OpenClaw one-time (charged once on first invoice)
+        // Optionally include Agent Runtime one-time (charged once on first invoice)
         if (includeOpenclaw) {
             const openclawPriceId = process.env.STRIPE_PRICE_ID_OPENCLAW;
             if (openclawPriceId) {
@@ -165,7 +165,7 @@ router.post('/modules/checkout', authenticateApiKey, async (req: Request, res: R
             }
         }
 
-        // Build metadata — include includeOpenclaw flag so webhook can detect it
+        // Build metadata — include runtime add-on flag so webhook can detect it
         const metadata: Record<string, string> = { targetTier: tier };
         if (includeOpenclaw) {
             metadata.includeOpenclaw = 'true';

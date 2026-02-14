@@ -79,7 +79,7 @@ export default defineConfig({
       {
         text: 'Integrations',
         items: [
-          { text: 'OpenClaw', link: '/guides/openclaw-integration' },
+          { text: 'Agent Integration', link: '/guides/openclaw-integration' },
           { text: 'AutoGPT', link: '/guides/autogpt-integration' },
           { text: 'LangChain', link: '/guides/langchain-integration' },
           { text: 'CrewAI', link: '/guides/crewai-integration' },

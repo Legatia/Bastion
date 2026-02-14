@@ -20,8 +20,8 @@ interface Module {
 const MODULES: Module[] = [
     {
         id: 'openclaw',
-        name: 'OpenClaw Runtime',
-        description: 'Core agent runtime environment',
+        name: 'Agent Runtime',
+        description: 'Process lifecycle management for your agents',
         price: 99,
         billing: 'one-time',
         required: true,
@@ -134,7 +134,7 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
 
                     await invoke('install_openclaw');
                 } catch (error) {
-                    console.error('Failed to install OpenClaw:', error);
+                    console.error('Failed to install agent runtime:', error);
                     setProgressLogs(prev => [...prev, {
                         step: 'error',
                         message: `Installation failed: ${error}`,
@@ -314,7 +314,7 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
                         >
                             <div>
                                 <h3 className="text-lg font-medium text-white mb-2">Agent Configuration</h3>
-                                <p className="text-zinc-400">Configure the Large Language Model source for OpenClaw.</p>
+                                <p className="text-zinc-400">Configure the LLM provider for your agent.</p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -414,8 +414,8 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
                             className="space-y-6"
                         >
                             <div>
-                                <h3 className="text-lg font-medium text-white mb-2">Installing OpenClaw</h3>
-                                <p className="text-zinc-400">Setting up runtime and downloading dependencies.</p>
+                                <h3 className="text-lg font-medium text-white mb-2">Setting Up Agent Runtime</h3>
+                                <p className="text-zinc-400">Configuring runtime environment and downloading dependencies.</p>
                             </div>
 
                             {/* Terminal UI */}

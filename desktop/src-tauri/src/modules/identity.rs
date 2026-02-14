@@ -8,7 +8,7 @@ pub async fn verify_identity<R: Runtime>(_app: AppHandle<R>, chain: String) -> R
     let config = load_config().map_err(|e| e.to_string())?;
     
     // If agent_id is missing, we can't verify
-    let agent_id = config.agent_id.ok_or("Agent ID not configured. Install OpenClaw first.")?;
+    let agent_id = config.agent_id.ok_or("Agent ID not configured. Run bastion init first.")?;
     
     let client = Client::new();
     let resp = client
@@ -57,7 +57,7 @@ pub async fn check_identity_status<R: Runtime>(_app: AppHandle<R>) -> Result<ser
 #[tauri::command]
 pub async fn register_agent<R: Runtime>(_app: AppHandle<R>, chain: String) -> Result<serde_json::Value, String> {
     let config = load_config().map_err(|e| e.to_string())?;
-    let agent_id = config.agent_id.ok_or("Agent ID not configured. Install OpenClaw first.")?;
+    let agent_id = config.agent_id.ok_or("Agent ID not configured. Run bastion init first.")?;
 
     let client = Client::new();
     let resp = client

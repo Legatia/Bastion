@@ -220,7 +220,7 @@ export default function Profile() {
                                     </p>
                                 </div>
 
-                                {/* OpenClaw */}
+                                {/* Node.js / TypeScript Agents */}
                                 <div style={{
                                     background: '#000',
                                     padding: '1.5rem',
@@ -229,16 +229,18 @@ export default function Profile() {
                                 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
                                         <div>
-                                            <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, marginBottom: '0.5rem' }}>🦞 OpenClaw</h3>
-                                            <p style={{ color: '#888', fontSize: '0.9rem', margin: 0 }}>Point OpenClaw to the proxy</p>
+                                            <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, marginBottom: '0.5rem' }}>🟢 Node.js / TypeScript Agents</h3>
+                                            <p style={{ color: '#888', fontSize: '0.9rem', margin: 0 }}>Works with any Node-based agent framework</p>
                                         </div>
                                         <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600' }}>
                                             READY
                                         </span>
                                     </div>
-                                    <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: 0 }}>
-                                        Set <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#10b981' }}>HTTP_PROXY=http://localhost:3000</code> before running OpenClaw
-                                    </p>
+                                    <div style={{ background: 'rgba(16,185,129,0.1)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
+                                        <code style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#10b981', display: 'block' }}>
+                                            HTTP_PROXY=http://localhost:3000 node agent.js
+                                        </code>
+                                    </div>
                                 </div>
 
                                 {/* LangChain/Python */}

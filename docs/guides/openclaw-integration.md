@@ -1,87 +1,131 @@
-# Bastion + OpenClaw Integration Guide
+# Agent Integration Guide
 
-## 🚀 Quick Start
+Bastion works with **any AI agent that makes HTTP or HTTPS requests**. No code changes needed — just route traffic through the Bastion proxy.
 
-### One-Command Setup
+## Quick Start
+
+### Option A: Environment Variable (Universal)
 
 ```bash
-# Auto-configure OpenClaw to use Bastion
-bastion enable --agent openclaw
+# Start Bastion proxy
+bastion start
+
+# Run your agent with proxy env set
+export HTTP_PROXY=http://localhost:3000
+export HTTPS_PROXY=http://localhost:3000
+python agent.py
 ```
 
-This command will:
-1. ✅ Backup your existing `~/.openclaw/openclaw.json`
-2. ✅ Add proxy configuration to OpenClaw's gateway
-3. ✅ Start Bastion proxy in the background
-4. ✅ You're ready to go!
-
-### Run OpenClaw Normally
+### Option B: Bastion Launcher (Recommended)
 
 ```bash
-# Just run OpenClaw as usual
-openclaw
+# Bastion sets proxy env automatically and launches your agent
+bastion start -- python agent.py
+```
 
-# All API calls are now automatically monitored by Bastion! 🛡️
+This method:
+1. Starts the Bastion proxy in the foreground
+2. Sets `HTTP_PROXY` and `HTTPS_PROXY` automatically
+3. Launches your agent as a child process
+4. All outbound requests are monitored and policy-checked
+
+---
+
+## Framework Examples
+
+### Python (LangChain, CrewAI, AutoGPT)
+
+```bash
+# Any Python agent that uses requests, httpx, or urllib
+bastion start -- python agent.py
+```
+
+Or set the proxy in your code:
+
+```python
+import os
+os.environ["HTTP_PROXY"] = "http://localhost:3000"
+os.environ["HTTPS_PROXY"] = "http://localhost:3000"
+```
+
+Most Python HTTP libraries (requests, httpx, aiohttp, urllib3) respect these environment variables automatically.
+
+### Node.js / TypeScript
+
+```bash
+bastion start -- node agent.js
+```
+
+Or use `global-agent` for programmatic setup:
+
+```javascript
+import { bootstrap } from 'global-agent';
+bootstrap(); // Reads HTTP_PROXY from env
+```
+
+### Go
+
+```bash
+bastion start -- ./my-agent
+```
+
+Go's `net/http` package respects `HTTP_PROXY` and `HTTPS_PROXY` by default.
+
+### Any Other Language
+
+If your agent makes HTTP requests, it works with Bastion. Set the proxy environment variables before starting your agent:
+
+```bash
+export HTTP_PROXY=http://localhost:3000
+export HTTPS_PROXY=http://localhost:3000
+./my-agent
 ```
 
 ---
 
-## 📋 What Gets Configured
+## Auto-Configure with `bastion enable`
 
-The `bastion enable` command modifies `~/.openclaw/openclaw.json`:
+For agents with known configuration files, Bastion can auto-inject proxy settings:
 
-```json
-{
-  "gateway": {
-    "trustedProxies": ["127.0.0.1"],
-    "httpProxy": "http://localhost:3000",
-    "httpsProxy": "http://localhost:3000"
-  },
-  "bastion": {
-    "enabled": true,
-    "port": 3000,
-    "configured_at": "2026-01-31T19:00:00Z"
-  }
-}
+```bash
+# Auto-configure a supported agent
+bastion enable --agent <type> [--port <PORT>] [--configure-only]
+```
+
+**Supported types:** `autogpt`, `langchain`
+
+This modifies the agent's config files to route through Bastion. Use `bastion disable --agent <type>` to revert.
+
+---
+
+## Custom Port
+
+```bash
+# Use port 8080 instead of default 3000
+bastion start --port 8080 -- python agent.py
 ```
 
 ---
 
-## 🎛️ Advanced Options
-
-### Configure Only (Don't Start Daemon)
+## Daemon Mode
 
 ```bash
-bastion enable --agent openclaw --configure-only
-```
+# Run Bastion in the background
+bastion start --daemon
 
-This updates the config file but doesn't start the proxy. Useful if you want to start it manually later.
+# Check status
+bastion status
 
-### Custom Port
+# View logs
+bastion logs -f
 
-```bash
-bastion enable --agent openclaw --port 8080
-```
-
-Uses port 8080 instead of the default 3000.
-
----
-
-## 🛑 Disabling Bastion
-
-```bash
-# Remove Bastion configuration from OpenClaw
-bastion disable --agent openclaw
-
-# Stop the daemon
+# Stop
 bastion stop
 ```
 
-Your original config is backed up at `~/.openclaw/openclaw.json.backup`.
-
 ---
 
-## 🔍 Verifying It Works
+## Verifying It Works
 
 ```bash
 # Check if Bastion daemon is running
@@ -96,97 +140,56 @@ bastion audit --limit 20
 
 ---
 
-## 🎯 What Gets Protected
+## What Gets Protected
 
-Once enabled, Bastion intercepts and can block:
+Once your agent is routed through Bastion, every outbound request is evaluated against your policies:
 
-- **API Calls** to OpenAI, Anthropic, Google, etc.
-- **HTTP Requests** made by OpenClaw's tools
-- **File Operations** (if configured with file protection policies)
+- **API Calls** to OpenAI, Anthropic, Google, and any other endpoint
+- **HTTP Requests** made by agent tools and plugins
 - **Spending** (enforce daily/monthly limits)
 - **Data Leakage** (DLP scans for PII, API keys, secrets)
+- **Rate Limits** (per-second, per-minute, per-hour)
+- **Domain Control** (allow/block lists)
 
 ---
 
-## 📊 Example Policy Setup
+## Disabling Protection
 
 ```bash
-# After enabling, create policies via the dashboard:
-# https://bastion.legatia.solutions/policies
+# Stop the proxy
+bastion stop
 
-# Or use the CLI test feature:
-bastion test --action-type http_request --url https://api.openai.com
+# Or remove auto-configured settings
+bastion disable --agent <type>
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## How It Works
 
-### OpenClaw Config Not Found
+1. **Proxy Interception**: Bastion runs a local HTTP/HTTPS proxy on `127.0.0.1`
+2. **Environment Injection**: Your agent's HTTP library reads `HTTP_PROXY` and routes through Bastion
+3. **Policy Evaluation**: Each request is sent to the Bastion backend for authorization
+4. **Allow/Block**: Allowed requests proceed to the target. Blocked requests return 403
 
-```bash
-❌ OpenClaw config not found at: ~/.openclaw/openclaw.json
-
-# Solution: Run OpenClaw first to initialize it
-openclaw
-```
-
-### Daemon Won't Start
-
-```bash
-# Check if port is already in use
-lsof -i :3000
-
-# Try a different port
-bastion enable --agent openclaw --port 8080
-```
-
-### Restore Original Config
-
-```bash
-# Your original config is backed up automatically
-cp ~/.openclaw/openclaw.json.backup ~/.openclaw/openclaw.json
-```
+This is **transparent to your agent** — no SDK, no code changes, no vendor lock-in.
 
 ---
 
-## 🌐 Supported Agents
-
-### ✅ Fully Supported
-- **OpenClaw** - Auto-configuration ready
-
-### 🚧 Coming Soon
-- **AutoGPT** - Manual setup via environment variables
-- **LangChain** - SDK package `bastion-langchain`
-- **CrewAI** - Integration in development
-
----
-
-## 💡 How It Works
-
-1. **Proxy Interception**: Bastion runs a local HTTP/HTTPS proxy
-2. **Config Injection**: OpenClaw's gateway is configured to route through this proxy
-3. **Policy Evaluation**: Each request is sent to Bastion backend for authorization
-4. **Allow/Block**: If allowed, request proceeds; if blocked, it's rejected with 403
-
-This is **transparent to OpenClaw** - no code changes needed!
-
----
-
-## 🔒 Security Notes
+## Security Notes
 
 - Bastion proxy runs **locally on your machine** (`127.0.0.1`)
-- Original config is **automatically backed up**
 - All decisions are logged in an **encrypted audit trail**
-- You can disable Bastion anytime with `bastion disable`
+- Fail-closed: if the backend is unreachable, requests are blocked
+- You can disable Bastion anytime with `bastion stop`
 
 ---
 
-## 📚 Next Steps
+## Next Steps
 
-1. ✅ Configure policies in the dashboard
-2. ✅ Set up spending limits
-3. ✅ Enable DLP scanning
-4. ✅ Monitor your agents with peace of mind!
+1. [Configure policies](/policies/overview) in the dashboard
+2. Set up [spending limits](/policies/spending-limits)
+3. Enable [DLP scanning](/policies/dlp)
+4. Monitor agents with [MoltMind](/cli/moltmind)
 
 **Questions?** Check the main README or run `bastion --help`.
