@@ -94,7 +94,7 @@ pub async fn register_agent<R: Runtime>(_app: AppHandle<R>, chain: String) -> Re
 pub async fn get_agent_wallet<R: Runtime>(_app: AppHandle<R>, network: Option<String>) -> Result<serde_json::Value, String> {
     let config = load_config().map_err(|e| e.to_string())?;
     let agent_id = config.agent_id.ok_or("Agent ID not configured")?;
-    let net = network.unwrap_or_else(|| "base-sepolia".to_string());
+    let net = network.unwrap_or_else(|| "base".to_string());
 
     let client = Client::new();
     let resp = client

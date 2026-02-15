@@ -13,6 +13,7 @@ type CdpFaucetToken = 'eth' | 'usdc' | 'eurc' | 'cbbtc';
 
 export class CdpWalletService {
     private static cdp: any;
+    private static serverWalletAddress: string | null = null;
 
     private static async getClient(): Promise<any> {
         if (!this.cdp) {
@@ -23,6 +24,52 @@ export class CdpWalletService {
             this.cdp = new CdpClient();
         }
         return this.cdp;
+    }
+
+    /**
+     * Get (or create) the single Bastion server wallet used for all on-chain registrations.
+     * One wallet registers all agents — simpler funding, visible traction on Basescan.
+     */
+    static async getServerWallet(): Promise<string> {
+        if (this.serverWalletAddress) return this.serverWalletAddress;
+
+        const cdp = await this.getClient();
+        const account = await cdp.evm.getOrCreateAccount({ name: 'bastion-server' });
+        this.serverWalletAddress = account.address;
+
+        logger.info('[CDP] Server wallet ready', { address: account.address });
+        return account.address;
+    }
+
+    /**
+     * Send a transaction from the Bastion server wallet.
+     * Used for ERC-8004 registrations — one wallet for all agents.
+     */
+    static async sendServerTransaction(params: {
+        to: string;
+        data?: Hex;
+        value?: bigint;
+        network: string;
+    }): Promise<{ transactionHash: Hex }> {
+        const cdp = await this.getClient();
+        const address = await this.getServerWallet();
+
+        const result = await cdp.evm.sendTransaction({
+            address: address as `0x${string}`,
+            network: params.network as CdpEvmNetwork,
+            transaction: {
+                to: params.to as `0x${string}`,
+                data: params.data,
+                value: params.value ?? 0n,
+            },
+        });
+
+        logger.info('[CDP] Server tx sent', {
+            txHash: result.transactionHash,
+            network: params.network,
+        });
+
+        return { transactionHash: result.transactionHash as Hex };
     }
 
     /**

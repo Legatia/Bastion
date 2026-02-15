@@ -99,7 +99,7 @@ export default function AgentsPage() {
 
     const fetchWallet = async (agentId: string) => {
         try {
-            const data = await api.get<WalletData>(`/agents/${agentId}/wallet?network=base-sepolia`);
+            const data = await api.get<WalletData>(`/agents/${agentId}/wallet?network=base`);
             setWalletMap(prev => ({ ...prev, [agentId]: data }));
         } catch {
             // ignore

@@ -159,14 +159,14 @@ enum Commands {
         #[arg(long)]
         agent_id: Option<String>,
 
-        /// Network to query balances on (base-sepolia or base)
-        #[arg(long, default_value = "base-sepolia")]
+        /// Network to query balances on (base or base-sepolia)
+        #[arg(long, default_value = "base")]
         network: String,
     },
     /// [STARTER+] Verify agent on-chain (ERC-8004) — prepares tx for user wallet signing
     Verify {
         /// Chain to register on
-        #[arg(long, default_value = "base-sepolia")]
+        #[arg(long, default_value = "base")]
         chain: String,
 
         /// Agent ID to verify (uses current directory's agent if not specified)
@@ -188,8 +188,8 @@ enum Commands {
     },
     /// [STARTER+] Register agent on-chain (ERC-8004) via CDP wallet — automated, no signing needed
     Register {
-        /// Chain to register on (base-sepolia or base)
-        #[arg(long, default_value = "base-sepolia")]
+        /// Chain to register on (base or base-sepolia)
+        #[arg(long, default_value = "base")]
         chain: String,
 
         /// Agent ID to register (uses current directory's agent if not specified)
@@ -1520,7 +1520,7 @@ async fn handle_register(chain: String, agent_id_arg: Option<String>, quiet: boo
     };
 
     if !quiet {
-        println!("Registering agent on-chain (ERC-8004) via CDP wallet...");
+        println!("Registering agent on-chain (ERC-8004)...");
         println!("  Chain: {}", chain);
         println!("  Agent: {}", agent_id);
     }
@@ -1550,7 +1550,6 @@ async fn handle_register(chain: String, agent_id_arg: Option<String>, quiet: boo
                             println!("  On-chain ID: #{}", body["agent"]["onchainId"]);
                             println!("  Chain: {}", body["agent"]["registryChain"].as_str().unwrap_or(&chain));
                             println!("  Owner: {}", body["agent"]["ownerAddress"].as_str().unwrap_or("unknown"));
-                            println!("  Wallet: {}", body["agent"]["walletAddress"].as_str().unwrap_or("unknown"));
                         }
                         if verbose {
                             println!("\nFull response:");

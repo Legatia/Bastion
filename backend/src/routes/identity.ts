@@ -51,7 +51,7 @@ router.get('/agents/:id/profile.json', profileLimiter, async (req: Request, res:
 
         const registrationFile = buildRegistrationFile(agent, {
             baseUrl,
-            chain: agent.registryChain || 'base-sepolia',
+            chain: agent.registryChain || 'base',
             agentId: agent.onchainId ? parseInt(agent.onchainId) : undefined,
             reputation,
         });
@@ -125,7 +125,7 @@ router.post('/agents/:id/verify', authenticateApiKey, async (req: Request, res: 
         }
 
         const agentId = req.params.id as string;
-        const { chain = 'base-sepolia' } = req.body;
+        const { chain = 'base' } = req.body;
 
         // Check ERC-8004 tier access (STARTER+)
         const access = await QuotaService.checkFeatureAccess(req.user.id, 'ERC8004_DAILY');
@@ -191,7 +191,7 @@ router.post('/agents/:id/verify/confirm', authenticateApiKey, async (req: Reques
         }
 
         const agentId = req.params.id as string;
-        const { txHash, registryChain = 'base-sepolia' } = req.body;
+        const { txHash, registryChain = 'base' } = req.body;
 
         if (!txHash) {
             return res.status(400).json({
@@ -276,8 +276,8 @@ router.post('/agents/:id/verify/confirm', authenticateApiKey, async (req: Reques
 
 /**
  * POST /v1/agents/:id/register
- * Server-side ERC-8004 registration using the agent's CDP wallet.
- * No user wallet needed — CDP signs and broadcasts the tx.
+ * Server-side ERC-8004 registration using a single Bastion server wallet.
+ * No user wallet needed — server wallet signs, broadcasts, and pays gas.
  */
 router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res: Response) => {
     try {
@@ -286,7 +286,7 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
         }
 
         const agentId = req.params.id as string;
-        const { chain = 'base-sepolia' } = req.body;
+        const { chain = 'base' } = req.body;
 
         // Check ERC-8004 tier access (STARTER+)
         const access = await QuotaService.checkFeatureAccess(req.user.id, 'ERC8004_DAILY');
@@ -324,17 +324,13 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
             });
         }
 
-        // Ensure CDP wallet exists
-        const walletAddress = await CdpWalletService.ensureWallet(agentId);
-
         // Prepare registration calldata
         const baseUrl = process.env.BACKEND_URL || 'https://bastion-gamma.vercel.app';
         const agentURI = getAgentURI(agent.id, baseUrl);
         const tx = prepareRegistrationTx(agentURI, chain);
 
-        // Send via CDP wallet
-        const { transactionHash } = await CdpWalletService.sendTransaction({
-            agentId,
+        // Send via single Bastion server wallet (pays gas, visible traction on Basescan)
+        const { transactionHash } = await CdpWalletService.sendServerTransaction({
             to: tx.to,
             data: tx.data,
             value: 0n,
@@ -363,7 +359,7 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
         });
 
         res.json({
-            message: 'Agent registered on-chain via CDP wallet!',
+            message: 'Agent registered on-chain!',
             agent: {
                 id: updatedAgent.id,
                 name: updatedAgent.name,
@@ -371,7 +367,6 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
                 onchainId: updatedAgent.onchainId,
                 registryChain: updatedAgent.registryChain,
                 ownerAddress: updatedAgent.ownerAddress,
-                walletAddress,
             },
         });
     } catch (error: any) {
@@ -418,7 +413,7 @@ router.get('/agents/:id/wallet', authenticateApiKey, async (req: Request, res: R
             });
         }
 
-        const network = (req.query.network as string) || 'base-sepolia';
+        const network = (req.query.network as string) || 'base';
 
         let balances;
         try {

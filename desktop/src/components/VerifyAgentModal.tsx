@@ -18,7 +18,7 @@ type Step = 'confirm' | 'registering' | 'success' | 'error';
 
 export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAgentModalProps) {
     const [step, setStep] = useState<Step>('confirm');
-    const [chain, setChain] = useState('base-sepolia');
+    const [chain, setChain] = useState('base');
     const [result, setResult] = useState<any>(null);
     const [error, setError] = useState('');
 
@@ -73,8 +73,8 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
                                 onChange={e => setChain(e.target.value)}
                                 className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm"
                             >
-                                <option value="base-sepolia">Base Sepolia (Testnet)</option>
                                 <option value="base">Base (Mainnet)</option>
+                                <option value="base-sepolia">Base Sepolia (Testnet)</option>
                             </select>
                         </div>
 
@@ -113,14 +113,8 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
                             )}
                             {result?.agent?.ownerAddress && (
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-zinc-500">Owner</span>
+                                    <span className="text-zinc-500">Registrar</span>
                                     <span className="font-mono text-xs">{result.agent.ownerAddress.slice(0, 10)}...{result.agent.ownerAddress.slice(-6)}</span>
-                                </div>
-                            )}
-                            {result?.agent?.walletAddress && (
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-zinc-500">Wallet</span>
-                                    <span className="font-mono text-xs">{result.agent.walletAddress.slice(0, 10)}...{result.agent.walletAddress.slice(-6)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between text-sm">

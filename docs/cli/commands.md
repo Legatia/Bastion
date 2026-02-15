@@ -805,7 +805,8 @@ Manage on-chain identities via ERC-8004.
 
 **Example:**
 ```bash
-bastion register --chain base-mainnet
+bastion register                    # Defaults to Base mainnet
+bastion register --chain base-sepolia  # Use testnet
 bastion verify --agent-id 550e8400...
 ```
 

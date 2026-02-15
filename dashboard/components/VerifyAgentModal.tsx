@@ -14,12 +14,9 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
     const [step, setStep] = useState<Step>('confirm');
     const [error, setError] = useState('');
     const [txHash, setTxHash] = useState('');
-    const [walletAddress, setWalletAddress] = useState(agent.cdpWalletAddress || '');
 
-    const chain = 'base-sepolia';
-    const explorerUrl = chain === 'base-sepolia'
-        ? 'https://sepolia.basescan.org'
-        : 'https://basescan.org';
+    const chain = 'base';
+    const explorerUrl = 'https://basescan.org';
 
     const handleRegister = async () => {
         setError('');
@@ -27,14 +24,12 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
 
         try {
             const result = await api.post<{
-                txHash: string;
-                onchainId: string;
-                walletAddress: string;
-                explorerUrl: string;
+                agent: { onchainId: string; ownerAddress: string };
+                message: string;
             }>(`/agents/${agent.id}/register`, { chain });
 
-            setTxHash(result.txHash);
-            setWalletAddress(result.walletAddress);
+            // txHash comes from the registration response
+            setTxHash((result as any).txHash || '');
             setStep('success');
         } catch (err: any) {
             const message = err?.response?.data?.error || err.message || 'Registration failed';
@@ -88,7 +83,7 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
                         }}>
                             <p style={{ margin: 0, color: '#93c5fd', fontSize: '0.9rem' }}>
                                 <strong>On-chain verification via ERC-8004.</strong><br />
-                                Your agent gets a verifiable identity on Base using its CDP wallet. No signing required.
+                                Your agent gets a verifiable identity on Base. No wallet or signing required.
                             </p>
                         </div>
 
@@ -100,31 +95,19 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
                             <p style={{ margin: 0, fontWeight: '600' }}>{agent.name}</p>
                         </div>
 
-                        {walletAddress && (
-                            <div style={{
-                                background: '#000', borderRadius: '8px', padding: '1rem', marginBottom: '1rem',
-                                border: '1px solid #333'
-                            }}>
-                                <p style={{ margin: '0 0 8px 0', color: '#888', fontSize: '0.8rem' }}>CDP Wallet</p>
-                                <p style={{ margin: 0, fontFamily: 'monospace', fontSize: '0.9rem' }}>
-                                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                                </p>
-                            </div>
-                        )}
-
                         <div style={{
                             background: '#000', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem',
                             border: '1px solid #333'
                         }}>
                             <p style={{ margin: '0 0 8px 0', color: '#888', fontSize: '0.8rem' }}>Network</p>
-                            <p style={{ margin: 0 }}>Base Sepolia (Testnet)</p>
+                            <p style={{ margin: 0 }}>Base (Mainnet)</p>
                         </div>
 
                         <button onClick={handleRegister} style={{ ...buttonStyle, background: '#22c55e' }}>
                             Register On-Chain
                         </button>
                         <p style={{ textAlign: 'center', color: '#666', fontSize: '0.8rem', marginTop: '8px' }}>
-                            Automated via CDP wallet — no manual signing needed
+                            One click — no wallet, no gas, no signing
                         </p>
                     </div>
                 )}

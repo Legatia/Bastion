@@ -67,7 +67,7 @@ export default function Dashboard() {
     const verifyIdentity = async () => {
         setLoadingIdentity(true);
         try {
-            await invoke('verify_identity', { chain: 'base-sepolia' });
+            await invoke('verify_identity', { chain: 'base' });
             checkStatus();
         } catch (e) {
             console.error("Verification failed", e);
