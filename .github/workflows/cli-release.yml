@@ -1,0 +1,89 @@
+name: CLI Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            asset: bastion-darwin-amd64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            asset: bastion-darwin-arm64
+
+          # Linux x86_64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            asset: bastion-linux-amd64
+
+          # Linux ARM64 (Jetson, Pi 4/5 64-bit, server ARM)
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            asset: bastion-linux-arm64
+            cross: true
+
+          # Linux ARMv7 (Pi 3/4 32-bit, older robots)
+          - target: armv7-unknown-linux-gnueabihf
+            os: ubuntu-22.04
+            asset: bastion-linux-armv7
+            cross: true
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (ARM cross-compilation)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build CLI (native)
+        if: ${{ !matrix.cross }}
+        working-directory: ./cli
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build CLI (cross-compiled)
+        if: matrix.cross
+        working-directory: ./cli
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          cp cli/target/${{ matrix.target }}/release/bastion-cli dist/bastion
+          chmod +x dist/bastion
+          cd dist
+          tar -czf ${{ matrix.asset }}.tar.gz bastion
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}.tar.gz
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.asset }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

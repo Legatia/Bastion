@@ -4,11 +4,13 @@ The Bastion CLI is a Rust-based command-line tool that provides the local proxy 
 
 ## Installation
 
-### Quick Install (macOS / Linux)
+### Quick Install (Recommended)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash
 ```
+
+Auto-detects your platform and architecture. Works on macOS, Linux, and ARM boards (Jetson, Raspberry Pi).
 
 ### From Source
 
@@ -22,19 +24,18 @@ cargo install --path .
 
 Download from [releases page](https://github.com/Legatia/Bastion/releases):
 
+| Asset | Platform |
+|-------|----------|
+| `bastion-darwin-arm64.tar.gz` | macOS Apple Silicon (M1/M2/M3/M4) |
+| `bastion-darwin-amd64.tar.gz` | macOS Intel |
+| `bastion-linux-amd64.tar.gz` | Linux x86_64 |
+| `bastion-linux-arm64.tar.gz` | Linux ARM64 (Jetson, Pi 4/5 64-bit) |
+| `bastion-linux-armv7.tar.gz` | Linux ARMv7 (Pi 3/4 32-bit, older boards) |
+
 ```bash
-# macOS (ARM64)
-curl -L https://github.com/Legatia/Bastion/releases/latest/download/bastion-macos-arm64 -o bastion
-chmod +x bastion
-sudo mv bastion /usr/local/bin/
-
-# macOS (Intel)
-curl -L https://github.com/Legatia/Bastion/releases/latest/download/bastion-macos-x64 -o bastion
-chmod +x bastion
-sudo mv bastion /usr/local/bin/
-
-# Linux
-curl -L https://github.com/Legatia/Bastion/releases/latest/download/bastion-linux-x64 -o bastion
+# Example: manual install on Linux ARM64
+curl -L https://github.com/Legatia/Bastion/releases/latest/download/bastion-linux-arm64.tar.gz -o bastion.tar.gz
+tar -xzf bastion.tar.gz
 chmod +x bastion
 sudo mv bastion /usr/local/bin/
 ```
@@ -222,9 +223,7 @@ bastion stop
 ## Performance
 
 ### Binary Size
-- **Debug build:** ~15 MB
-- **Release build:** ~5 MB
-- **Stripped release:** ~3 MB
+- **Release build (stripped, LTO):** ~7 MB
 
 ### Startup Time
 - **Cold start:** ~50ms
@@ -259,10 +258,11 @@ bastion stop
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| macOS (ARM64) | ✅ Fully supported | M1/M2/M3 Macs |
+| macOS (ARM64) | ✅ Fully supported | M1/M2/M3/M4 Macs |
 | macOS (Intel) | ✅ Fully supported | Intel Macs |
-| Linux (x86_64) | ✅ Fully supported | Most distros |
-| Linux (ARM64) | ✅ Supported | Raspberry Pi, etc. |
+| Linux (x86_64) | ✅ Fully supported | Cloud servers, desktops |
+| Linux (ARM64) | ✅ Fully supported | NVIDIA Jetson, Raspberry Pi 4/5 (64-bit), server ARM |
+| Linux (ARMv7) | ✅ Fully supported | Raspberry Pi 3/4 (32-bit), older robotic boards |
 | Windows | ⚠️ Experimental | Limited daemon support |
 
 ## Next Steps

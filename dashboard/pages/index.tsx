@@ -157,7 +157,7 @@ function InstallOptions() {
             </code>
           </div>
           <div style={{ fontSize: '0.9rem', color: '#888', textAlign: 'left' }}>
-            Then run <code style={{ background: '#000', padding: '2px 8px', borderRadius: '4px', color: '#10b981' }}>bastion login</code> to authenticate. macOS and Linux.
+            Then run <code style={{ background: '#000', padding: '2px 8px', borderRadius: '4px', color: '#10b981' }}>bastion login</code> to authenticate. macOS, Linux, and ARM boards.
           </div>
         </>
       ) : (

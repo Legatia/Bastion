@@ -4,9 +4,9 @@ Get your first AI agent protected with Bastion in under 5 minutes.
 
 ## Prerequisites
 
-- **Rust** (1.70+) - [Install Rust](https://rustup.rs/) (Only needed for CLI)
-- **Node.js** (18+) - For running the backend locally
-- **PostgreSQL** (optional) - For persistent storage
+- **macOS or Linux** — x86_64, ARM64 (Jetson, Pi 4/5), or ARMv7 (Pi 3/4)
+- **Node.js** (18+) — Only needed if running the backend locally
+- **Rust** (1.70+) — Only needed if building from source
 
 ## Fast Track: Bastion Desktop
 
@@ -21,12 +21,14 @@ If you want to get started with a visual interface and zero terminal setup, down
 ## Step 1: Install the CLI (Alternative)
 
 ```bash
-# One-line install (macOS / Linux)
+# One-line install (macOS, Linux, ARM boards)
 curl -fsSL https://raw.githubusercontent.com/Legatia/Bastion/main/install.sh | bash
 
 # Verify installation
 bastion --version
 ```
+
+The installer auto-detects your platform and architecture (x86_64, ARM64, ARMv7). Works on cloud servers, laptops, Jetson boards, and Raspberry Pis.
 
 Or build from source (requires Rust 1.70+):
 

@@ -49,7 +49,7 @@ case "$OS" in
         ;;
     *)
         echo -e "${RED}Error: Unsupported operating system: $OS${NC}"
-        echo "Bastion currently supports macOS and Linux."
+        echo "Bastion supports macOS and Linux (x86_64, ARM64, ARMv7)."
         exit 1
         ;;
 esac
@@ -62,8 +62,12 @@ case "$ARCH" in
     arm64|aarch64)
         ARCH_NAME="arm64"
         ;;
+    armv7l|armhf)
+        ARCH_NAME="armv7"
+        ;;
     *)
         echo -e "${RED}Error: Unsupported architecture: $ARCH${NC}"
+        echo "Bastion supports: x86_64, arm64/aarch64, armv7l (Raspberry Pi, Jetson, etc.)"
         exit 1
         ;;
 esac

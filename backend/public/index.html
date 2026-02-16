@@ -247,30 +247,23 @@
 
             <div class="step">
                 <div class="step-number">2</div>
-                <h3>Get Your API Key</h3>
-                <p>Register via CLI:</p>
+                <h3>Login</h3>
+                <p>Get an API key at <a href="https://bastion.legatia.solutions/profile" style="color: #667eea; text-decoration: underline;">bastion.legatia.solutions</a>, then:</p>
                 <div class="command" onclick="copyToClipboard(this)" style="margin-top: 10px;">
-                    <code>curl -X POST https://bastion-gamma.vercel.app/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com","password":"yourpass"}'</code>
+                    <code>bastion login</code>
                     <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(this.parentElement)">Copy</button>
                 </div>
-                <p style="margin-top: 10px; font-size: 0.9rem; color: #718096;">Or visit <a href="https://bastion.legatia.solutions/login" style="color: #667eea; text-decoration: underline;">bastion.legatia.solutions</a> to register with a UI</p>
+                <p style="margin-top: 10px; font-size: 0.9rem; color: #718096;">Walks you through agent setup automatically.</p>
             </div>
 
             <div class="step">
                 <div class="step-number">3</div>
-                <h3>Initialize & Start</h3>
+                <h3>Start</h3>
                 <div class="command" onclick="copyToClipboard(this)">
-                    <code>bastion init && bastion start</code>
+                    <code>bastion start -- python agent.py</code>
                     <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(this.parentElement)">Copy</button>
                 </div>
-            </div>
-
-            <div class="step">
-                <div class="step-number">4</div>
-                <h3>Configure Your Agent</h3>
-                <p>Point your agent to <code style="background: #e2e8f0; padding: 3px 8px; border-radius: 4px;">http://localhost:8765</code></p>
+                <p style="margin-top: 10px; font-size: 0.9rem; color: #718096;">Works on macOS, Linux, and ARM boards (Jetson, Raspberry Pi).</p>
             </div>
         </div>
 

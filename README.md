@@ -109,6 +109,18 @@ export HTTPS_PROXY=http://localhost:3000
 
 Every outbound request now goes through Bastion's policy engine.
 
+### Supported Platforms
+
+The installer auto-detects your architecture. Pre-built binaries for:
+
+| Platform | Asset |
+|----------|-------|
+| macOS Apple Silicon | `bastion-darwin-arm64` |
+| macOS Intel | `bastion-darwin-amd64` |
+| Linux x86_64 | `bastion-linux-amd64` |
+| Linux ARM64 (Jetson, Pi 4/5) | `bastion-linux-arm64` |
+| Linux ARMv7 (Pi 3/4, robotic boards) | `bastion-linux-armv7` |
+
 ---
 
 ## CLI Commands
