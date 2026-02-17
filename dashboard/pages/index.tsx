@@ -16,7 +16,7 @@ export default function Home() {
       <Navbar />
 
       {/* Hero Section */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '4rem 2rem' }}>
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '2rem 1rem' }}>
         <div style={{
           background: 'linear-gradient(180deg, rgba(59,130,246,0.1) 0%, rgba(0,0,0,0) 100%)',
           padding: '10px 20px',
@@ -31,16 +31,16 @@ export default function Home() {
           AI AGENT SECURITY
         </div>
 
-        <h1 style={{ fontSize: '4rem', maxWidth: '800px', lineHeight: '1.1', marginBottom: '1.5rem' }}>
+        <h1 className="hero-title">
           The Security Layer for <br />
           <span className="gradient-text">Autonomous AI Agents</span>
         </h1>
 
-        <p style={{ fontSize: '1.2rem', color: '#889', maxWidth: '600px', marginBottom: '2rem', lineHeight: '1.6' }}>
+        <p style={{ fontSize: '1.1rem', color: '#889', maxWidth: '600px', marginBottom: '2rem', lineHeight: '1.6', padding: '0 1rem' }}>
           Policy enforcement, on-chain identity, and behavioral monitoring for your AI workforce. Works via HTTP proxy — zero code changes required.
         </p>
 
-        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '3rem' }}>
+        <div className="hero-cta-row">
           <Link href="/analytics" style={{
             background: '#fff', color: '#000', padding: '1rem 2rem', borderRadius: '8px',
             textDecoration: 'none', fontWeight: 'bold', fontSize: '1.1rem'
@@ -55,7 +55,7 @@ export default function Home() {
         <InstallOptions />
 
         {/* Stats */}
-        <div style={{ display: 'flex', gap: '4rem', marginTop: '6rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '3rem' }}>
+        <div className="hero-stats">
           <div>
             <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>9</div>
             <div style={{ color: '#666', fontSize: '0.9rem', textTransform: 'uppercase' }}>Policy Types</div>
@@ -72,8 +72,8 @@ export default function Home() {
       </main>
 
       {/* Features Grid */}
-      <section style={{ padding: '6rem 4rem', background: 'rgba(255,255,255,0.02)' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+      <section style={{ padding: '4rem 2rem', background: 'rgba(255,255,255,0.02)' }}>
+        <div className="features-grid">
           <FeatureCard
             icon={<Shield color="var(--primary)" />}
             title="Policy Engine"

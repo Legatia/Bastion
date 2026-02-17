@@ -118,7 +118,7 @@ export default function Referrals() {
                         )}
 
                         {/* Stats Cards */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                        <div className="stat-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
                                 <Users size={24} color="#3b82f6" style={{ marginBottom: '8px' }} />
                                 <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '4px' }}>TOTAL REFERRALS</p>

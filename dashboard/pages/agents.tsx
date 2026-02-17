@@ -157,7 +157,7 @@ export default function Agents() {
 
             <Navbar />
 
-            <main style={{ padding: '3rem 2rem', maxWidth: '1000px', margin: '0 auto' }}>
+            <main style={{ padding: '2rem 1rem', maxWidth: '1000px', margin: '0 auto' }}>
                 <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -229,9 +229,9 @@ export default function Agents() {
                     <div style={{ display: 'grid', gap: '1rem' }}>
                         {agents.map(agent => (
                             <div key={agent.id}>
-                                <div style={{
+                                <div className="agent-card-inner" style={{
                                     background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)',
-                                    borderRadius: '12px', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                    borderRadius: '12px', padding: '1.5rem',
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                         <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: getStatusColor(agent.status) }} />
@@ -265,7 +265,7 @@ export default function Agents() {
                                             )}
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    <div className="agent-card-actions">
                                         {agent.onchainId ? (
                                             <span style={{
                                                 padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600',

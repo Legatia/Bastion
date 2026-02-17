@@ -131,7 +131,7 @@ export default function Billing() {
 
             <Navbar />
 
-            <main style={{ padding: '4rem 2rem', maxWidth: '1100px', margin: '0 auto' }}>
+            <main style={{ padding: '2rem 1rem', maxWidth: '1100px', margin: '0 auto' }}>
                 <header style={{ textAlign: 'center', marginBottom: '3rem' }}>
                     <h1 style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>Simple Tier Pricing</h1>
                     <p style={{ color: '#889', fontSize: '1.1rem' }}>
@@ -187,12 +187,7 @@ export default function Billing() {
                 )}
 
                 {/* Tier Cards */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: '1.25rem',
-                    marginBottom: '3rem',
-                }}>
+                <div className="tier-grid">
                     {tiers.map((t) => {
                         const isCurrentTier = currentTier === t.tier;
                         const tierIndex = tierOrder.indexOf(t.tier);
@@ -418,7 +413,7 @@ export default function Billing() {
                     backdropFilter: 'blur(5px)',
                 }}>
                     <div style={{
-                        width: '100%', maxWidth: '600px',
+                        width: '95%', maxWidth: '600px',
                         background: '#111',
                         border: '1px solid #333',
                         borderRadius: '16px',

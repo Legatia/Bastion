@@ -75,7 +75,7 @@ export default function Profile() {
                                 <h2 style={{ fontSize: '1.25rem', fontWeight: '600', margin: 0 }}>Subscription & Usage</h2>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                            <div className="stat-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                                 {/* Tier Badge */}
                                 <div style={{ background: '#000', padding: '1.25rem', borderRadius: '12px', border: '1px solid #27272a', textAlign: 'center' }}>
                                     <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '0.5rem' }}>PLAN</p>
