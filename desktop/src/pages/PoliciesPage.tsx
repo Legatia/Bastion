@@ -4,7 +4,7 @@ import Navbar from '../components/Navbar';
 import { Shield, Save, Plus, Trash2, Lock, Clock, FileText } from 'lucide-react';
 import { api } from '../lib/api';
 
-type PolicyType = 'RATE_LIMIT' | 'DOMAIN_FILTER' | 'DLP';
+type PolicyType = 'RATE_LIMIT' | 'ALLOWLIST' | 'BLOCKLIST' | 'DLP';
 
 interface Policy {
     id?: string;
@@ -17,13 +17,15 @@ interface Policy {
 
 const POLICY_ICONS: Record<PolicyType, any> = {
     RATE_LIMIT: Clock,
-    DOMAIN_FILTER: Shield,
+    ALLOWLIST: Shield,
+    BLOCKLIST: Shield,
     DLP: Lock,
 };
 
 const POLICY_DESCRIPTIONS: Record<PolicyType, string> = {
     RATE_LIMIT: 'Limit request frequency to prevent abuse',
-    DOMAIN_FILTER: 'Whitelist or blacklist specific domains',
+    ALLOWLIST: 'Allow or block specific domains',
+    BLOCKLIST: 'Allow or block specific domains',
     DLP: 'Scan for sensitive data in agent traffic',
 };
 
@@ -65,18 +67,30 @@ export default function PoliciesPage() {
         setSaving(true);
 
         let config: any = {};
+        let payloadType = activeType as any;
         if (activeType === 'RATE_LIMIT') {
-            config = { maxRequests: parseInt(maxRequests), windowSeconds: parseInt(windowSeconds) };
-        } else if (activeType === 'DOMAIN_FILTER') {
-            config = { mode: filterMode, domains: domains.split('\n').map(d => d.trim()).filter(Boolean) };
+            const seconds = parseInt(windowSeconds);
+            const per = seconds >= 86400 ? '24h' : seconds >= 3600 ? '1h' : '1m';
+            config = { max_requests: parseInt(maxRequests), per };
+        } else if (activeType === 'ALLOWLIST') {
+            const parsedDomains = domains.split('\n').map(d => d.trim()).filter(Boolean);
+            payloadType = filterMode === 'blacklist' ? 'BLOCKLIST' : 'ALLOWLIST';
+            config = filterMode === 'blacklist'
+                ? { blocked_values: parsedDomains }
+                : { allowed_values: parsedDomains };
         } else if (activeType === 'DLP') {
-            config = { enabledPatterns: ['OPENAI_API_KEY', 'AWS_ACCESS_KEY', 'PRIVATE_KEY', 'SSN'] };
+            config = {
+                use_builtin_patterns: true,
+                block_on_match: true,
+                enabled_pattern_types: ['OPENAI_API_KEY', 'AWS_ACCESS_KEY', 'PRIVATE_KEY', 'SSN'],
+                severity_threshold: 'MEDIUM',
+            };
         }
 
         try {
             await api.post('/policies', {
                 name: formName,
-                type: activeType,
+                type: payloadType,
                 enabled: formEnabled,
                 priority: 1,
                 config,
@@ -131,7 +145,7 @@ export default function PoliciesPage() {
                 {showCreate && (
                     <div className="mb-8 p-6 bg-zinc-900/50 border border-zinc-800 rounded-xl space-y-6">
                         <div className="grid grid-cols-3 gap-3">
-                            {(['RATE_LIMIT', 'DOMAIN_FILTER', 'DLP'] as PolicyType[]).map(type => {
+                            {(['RATE_LIMIT', 'ALLOWLIST', 'DLP'] as PolicyType[]).map(type => {
                                 const Icon = POLICY_ICONS[type];
                                 return (
                                     <button
@@ -175,7 +189,7 @@ export default function PoliciesPage() {
                             </div>
                         )}
 
-                        {activeType === 'DOMAIN_FILTER' && (
+                        {activeType === 'ALLOWLIST' && (
                             <div className="space-y-3">
                                 <div className="flex gap-3">
                                     <button onClick={() => setFilterMode('blacklist')}

@@ -31,6 +31,7 @@ const envConfig: EnvConfig = {
         'ATTESTATION_CONTRACT_ADDRESS',
         'ATTESTATION_NETWORK',
         'ATTESTATION_WALLET_NAME',
+        'ATTESTATION_RPC_URL',
         'ATTEST_DECISION_ACTION_TYPES',
     ],
 };

@@ -165,7 +165,8 @@ All endpoints are under `/v1/`.
 | `GET` | `/agents/:id/profile.json` | Public | ERC-8004 registration file |
 | `POST` | `/agents/:id/verify` | API Key | Prepare on-chain registration tx |
 | `POST` | `/agents/:id/register` | API Key | Server-side registration via CDP wallet |
-| `GET` | `/attest/wallet` | API Key | Attestation wallet address, network, and balances |
+| `GET` | `/attest/wallet` | Public | Attestation wallet address, network, and balances |
+| `GET` | `/attest/status` | Public | Attestation configuration and health status |
 | `GET` | `/agents/:id/wallet` | API Key | CDP wallet address and balances |
 | `GET` | `/agents/:id/health` | API Key | MoltMind health score (STARTER+) |
 | `GET` | `/agents/:id/alerts` | API Key | Cognitive alerts (PRO) |
@@ -233,6 +234,7 @@ See [`backend/.env.example`](./backend/.env.example) for the full list. Key vari
 | `ATTESTATION_CONTRACT_ADDRESS` | Optional | On-chain attestation contract address for policy/decision receipts |
 | `ATTESTATION_NETWORK` | Optional | Network for attestations (default `avalanche`) |
 | `ATTESTATION_WALLET_NAME` | Optional | CDP wallet name used for attestations (default `bastion-attestor`) |
+| `ATTESTATION_RPC_URL` | Optional | RPC URL override for `/v1/attest/status` contract code checks |
 | `ATTEST_DECISION_ACTION_TYPES` | Optional | Comma-separated critical action types to anchor (e.g. `payment,transfer,swap`) |
 | `ENCRYPTION_KEY` | Recommended | AES-256 key for audit log encryption |
 
@@ -258,6 +260,7 @@ Bastion can anchor policy changes and critical decision receipts on-chain using 
 
 - Contract source: `contracts/attestor/src/BastionAttestor.sol`
 - Wallet endpoint: `GET /v1/attest/wallet`
+- Status endpoint: `GET /v1/attest/status`
 - Triggered on:
   - Policy `create/update/delete`
   - Critical `/authorize` decisions (blocked/error/spending/critical action types)

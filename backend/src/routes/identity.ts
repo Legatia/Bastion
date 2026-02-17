@@ -21,6 +21,22 @@ import { createPublicClient, http, type Hex } from 'viem';
 import { avalanche, avalancheFuji, baseSepolia, base } from 'viem/chains';
 
 const router = Router();
+const CDP_SUPPORTED_EVM_NETWORKS = new Set([
+    'base',
+    'base-sepolia',
+    'ethereum',
+    'ethereum-sepolia',
+    'avalanche',
+    'polygon',
+    'optimism',
+    'arbitrum',
+]);
+const NETWORK_RPC_FALLBACKS: Record<string, string> = {
+    avalanche: 'https://api.avax.network/ext/bc/C/rpc',
+    'avalanche-fuji': 'https://api.avax-test.network/ext/bc/C/rpc',
+    base: 'https://mainnet.base.org',
+    'base-sepolia': 'https://sepolia.base.org',
+};
 
 // Rate limit for the public profile.json endpoint (P2-7)
 const profileLimiter = rateLimit({
@@ -415,6 +431,73 @@ router.get('/attest/wallet', async (req: Request, res: Response) => {
     } catch (error: any) {
         logger.error('Error fetching attestation wallet:', error);
         res.status(500).json({ error: 'Failed to fetch attestation wallet', message: error.message });
+    }
+});
+
+/**
+ * GET /v1/attest/status
+ * Public attestation health/configuration endpoint.
+ */
+router.get('/attest/status', async (_req: Request, res: Response) => {
+    try {
+        const network = process.env.ATTESTATION_NETWORK || 'avalanche';
+        const walletName = process.env.ATTESTATION_WALLET_NAME || 'bastion-attestor';
+        const contractAddress = process.env.ATTESTATION_CONTRACT_ADDRESS || null;
+        const rpcUrl = process.env.ATTESTATION_RPC_URL || NETWORK_RPC_FALLBACKS[network] || null;
+        const cdpNetworkSupported = CDP_SUPPORTED_EVM_NETWORKS.has(network);
+
+        const wallet = await CdpWalletService.getAttestationWallet();
+
+        let balances: any = [];
+        try {
+            balances = await CdpWalletService.getAddressBalances(wallet.address, network);
+        } catch {
+            // Non-blocking for status endpoint.
+        }
+
+        let contractCodePresent: boolean | null = null;
+        let contractCodeCheckError: string | null = null;
+        if (contractAddress && /^0x[a-fA-F0-9]{40}$/.test(contractAddress) && rpcUrl) {
+            try {
+                const client = createPublicClient({ transport: http(rpcUrl) });
+                const bytecode = await client.getBytecode({ address: contractAddress as `0x${string}` });
+                contractCodePresent = !!bytecode && bytecode !== '0x';
+            } catch (error: any) {
+                contractCodeCheckError = error?.message || 'Failed to fetch contract bytecode';
+            }
+        }
+
+        let lastErrorHint: string | null = null;
+        if (!contractAddress) {
+            lastErrorHint = 'ATTESTATION_CONTRACT_ADDRESS is not set';
+        } else if (!cdpNetworkSupported) {
+            lastErrorHint = `ATTESTATION_NETWORK "${network}" is not supported by CDP sendTransaction`;
+        } else if (contractCodePresent === false) {
+            lastErrorHint = `No bytecode found at ${contractAddress} on ${network}`;
+        } else if (contractCodeCheckError) {
+            lastErrorHint = contractCodeCheckError;
+        } else if (!balances || balances.length === 0) {
+            lastErrorHint = 'Attestation wallet appears unfunded on configured network';
+        }
+
+        const enabled = !!contractAddress && cdpNetworkSupported;
+
+        res.json({
+            enabled,
+            cdpNetworkSupported,
+            network,
+            rpcUrl,
+            walletName,
+            walletAddress: wallet.address,
+            walletBalances: balances,
+            contractAddress,
+            contractCodePresent,
+            contractCodeCheckError,
+            lastErrorHint,
+        });
+    } catch (error: any) {
+        logger.error('Error fetching attestation status:', error);
+        res.status(500).json({ error: 'Failed to fetch attestation status', message: error.message });
     }
 });
 
