@@ -18,7 +18,7 @@ import {
 import { CdpWalletService } from '../services/cdp-wallet-service';
 import rateLimit from 'express-rate-limit';
 import { createPublicClient, http, type Hex } from 'viem';
-import { baseSepolia, base } from 'viem/chains';
+import { avalanche, avalancheFuji, baseSepolia, base } from 'viem/chains';
 
 const router = Router();
 
@@ -51,7 +51,7 @@ router.get('/agents/:id/profile.json', profileLimiter, async (req: Request, res:
 
         const registrationFile = buildRegistrationFile(agent, {
             baseUrl,
-            chain: agent.registryChain || 'base',
+            chain: agent.registryChain || 'avalanche',
             agentId: agent.onchainId ? parseInt(agent.onchainId) : undefined,
             reputation,
         });
@@ -125,7 +125,7 @@ router.post('/agents/:id/verify', authenticateApiKey, async (req: Request, res: 
         }
 
         const agentId = req.params.id as string;
-        const { chain = 'base' } = req.body;
+        const { chain = 'avalanche' } = req.body;
 
         // Check ERC-8004 tier access (STARTER+)
         const access = await QuotaService.checkFeatureAccess(req.user.id, 'ERC8004_DAILY');
@@ -191,7 +191,7 @@ router.post('/agents/:id/verify/confirm', authenticateApiKey, async (req: Reques
         }
 
         const agentId = req.params.id as string;
-        const { txHash, registryChain = 'base' } = req.body;
+        const { txHash, registryChain = 'avalanche' } = req.body;
 
         if (!txHash) {
             return res.status(400).json({
@@ -286,7 +286,7 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
         }
 
         const agentId = req.params.id as string;
-        const { chain = 'base' } = req.body;
+        const { chain = 'avalanche' } = req.body;
 
         // Check ERC-8004 tier access (STARTER+)
         const access = await QuotaService.checkFeatureAccess(req.user.id, 'ERC8004_DAILY');
@@ -329,7 +329,7 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
         const agentURI = getAgentURI(agent.id, baseUrl);
         const tx = prepareRegistrationTx(agentURI, chain);
 
-        // Send via single Bastion server wallet (pays gas, visible traction on Basescan)
+        // Send via single Bastion server wallet (pays gas, visible traction on explorer)
         const { transactionHash } = await CdpWalletService.sendServerTransaction({
             to: tx.to,
             data: tx.data,
@@ -339,7 +339,13 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
 
         // Wait for mining
         const registry = IDENTITY_REGISTRIES[chain];
-        const viemChain = chain === 'base-sepolia' ? baseSepolia : base;
+        const viemChain = chain === 'avalanche'
+            ? avalanche
+            : chain === 'avalanche-fuji'
+                ? avalancheFuji
+                : chain === 'base-sepolia'
+                    ? baseSepolia
+                    : base;
         const publicClient = createPublicClient({
             chain: viemChain,
             transport: http(registry.rpcUrl),
@@ -372,6 +378,47 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
     } catch (error: any) {
         logger.error('Error in server-side registration:', error);
         res.status(500).json({ error: 'Registration failed', message: error.message });
+    }
+});
+
+/**
+ * GET /v1/attest/wallet
+ * Get the dedicated CDP wallet used for policy/decision attestations.
+ */
+router.get('/attest/wallet', authenticateApiKey, async (req: Request, res: Response) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const network = process.env.ATTESTATION_NETWORK || 'avalanche';
+        const wallet = await CdpWalletService.getAttestationWallet();
+
+        let balances: any = [];
+        try {
+            balances = await CdpWalletService.getAddressBalances(wallet.address, network);
+        } catch {
+            // Non-blocking: wallet address is still useful for funding.
+        }
+
+        const explorerBase = network === 'avalanche'
+            ? 'https://snowtrace.io'
+            : network === 'avalanche-fuji'
+                ? 'https://testnet.snowtrace.io'
+                : network === 'base'
+                    ? 'https://basescan.org'
+                    : 'https://sepolia.basescan.org';
+
+        res.json({
+            walletName: wallet.name,
+            network,
+            address: wallet.address,
+            explorerUrl: `${explorerBase}/address/${wallet.address}`,
+            balances,
+        });
+    } catch (error: any) {
+        logger.error('Error fetching attestation wallet:', error);
+        res.status(500).json({ error: 'Failed to fetch attestation wallet', message: error.message });
     }
 });
 
@@ -413,7 +460,7 @@ router.get('/agents/:id/wallet', authenticateApiKey, async (req: Request, res: R
             });
         }
 
-        const network = (req.query.network as string) || 'base';
+        const network = (req.query.network as string) || 'avalanche';
 
         let balances;
         try {
@@ -422,9 +469,14 @@ router.get('/agents/:id/wallet', authenticateApiKey, async (req: Request, res: R
             balances = [];
         }
 
-        const explorerBase = network === 'base'
-            ? 'https://basescan.org'
-            : 'https://sepolia.basescan.org';
+        const explorerBase =
+            network === 'avalanche'
+                ? 'https://snowtrace.io'
+                : network === 'avalanche-fuji'
+                    ? 'https://testnet.snowtrace.io'
+                    : network === 'base'
+                        ? 'https://basescan.org'
+                        : 'https://sepolia.basescan.org';
 
         res.json({
             address: agent.cdpWalletAddress,
@@ -469,11 +521,11 @@ router.post('/agents/:id/wallet/faucet', authenticateApiKey, async (req: Request
             });
         }
 
-        const { network = 'base-sepolia', token = 'eth' } = req.body;
+        const { network = 'avalanche-fuji', token = 'avax' } = req.body;
 
-        if (!network.includes('sepolia')) {
+        if (!network.includes('sepolia') && network !== 'avalanche-fuji') {
             return res.status(400).json({
-                error: 'Faucet only available on sepolia networks',
+                error: 'Faucet only available on testnet networks',
             });
         }
 
@@ -485,7 +537,9 @@ router.post('/agents/:id/wallet/faucet', authenticateApiKey, async (req: Request
         res.json({
             message: `Faucet ${token} requested on ${network}`,
             transactionHash: result.transactionHash,
-            explorerUrl: `https://sepolia.basescan.org/tx/${result.transactionHash}`,
+            explorerUrl: network === 'avalanche-fuji'
+                ? `https://testnet.snowtrace.io/tx/${result.transactionHash}`
+                : `https://sepolia.basescan.org/tx/${result.transactionHash}`,
         });
     } catch (error: any) {
         logger.error('Error requesting faucet:', error);

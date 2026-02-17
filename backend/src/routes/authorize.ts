@@ -11,6 +11,7 @@ import { QuotaService } from '../services/quota-service';
 import { EncryptionService } from '../services/encryption-service';
 import { behavioralCollector } from '../services/behavioralCollector';
 import { logger } from '../middleware/logger';
+import { OnchainAttestationService } from '../services/onchain-attestation-service';
 
 const router = Router();
 
@@ -114,6 +115,17 @@ router.post('/authorize', authenticateApiKey, async (req: Request, res: Response
         latencyMs,
       },
     });
+
+    OnchainAttestationService.attestDecisionReceipt({
+      userId: req.user.id,
+      agentId: agent_id || null,
+      actionType: action.type,
+      decision: result.allowed ? 'ALLOWED' : 'BLOCKED',
+      reason: result.reason,
+      spendingAmount,
+      policyId: result.policyId?.toString() || null,
+      logId: actionLog.id,
+    }).catch((err) => logger.error('[ATTEST] Decision attestation failed:', err));
 
     // Update usage metrics
     const today = new Date();

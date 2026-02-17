@@ -1,13 +1,12 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bastion-gamma.vercel.app/v1';
 
-// In production/real integration, this comes from ENV or Auth Context
-// For now we use a placeholder or read from a local .env file
-const getApiKey = () => {
+// API key comes from local session storage or explicit env config.
+const getApiKey = (): string | null => {
     if (typeof window !== 'undefined') {
         const stored = localStorage.getItem('bastion_api_key');
         if (stored) return stored;
     }
-    return process.env.NEXT_PUBLIC_BASTION_API_KEY || 'bst_demo_placeholder_key';
+    return process.env.NEXT_PUBLIC_BASTION_API_KEY || null;
 };
 
 interface RequestOptions extends RequestInit {
@@ -25,9 +24,15 @@ async function fetchAPI<T>(endpoint: string, options: RequestOptions = {}): Prom
 
     const headers = {
         'Content-Type': 'application/json',
-        'X-API-Key': getApiKey(),
         ...init.headers,
     };
+
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        throw new Error('Missing API key. Log in first or set NEXT_PUBLIC_BASTION_API_KEY.');
+    }
+
+    (headers as Record<string, string>)['X-API-Key'] = apiKey;
 
     const res = await fetch(url, { ...init, headers });
 

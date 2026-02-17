@@ -67,7 +67,7 @@ export default function Dashboard() {
     const verifyIdentity = async () => {
         setLoadingIdentity(true);
         try {
-            await invoke('verify_identity', { chain: 'base' });
+            await invoke('verify_identity', { chain: 'avalanche' });
             checkStatus();
         } catch (e) {
             console.error("Verification failed", e);
@@ -121,7 +121,7 @@ export default function Dashboard() {
                                 disabled={loadingIdentity}
                                 className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
                             >
-                                {loadingIdentity ? 'Verifying...' : 'Verify on Base Sepolia'}
+                                {loadingIdentity ? 'Verifying...' : 'Verify on Avalanche'}
                             </button>
                         )}
                         {identity?.verified && (

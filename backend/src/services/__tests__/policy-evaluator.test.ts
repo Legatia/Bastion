@@ -691,7 +691,8 @@ describe('PolicyEvaluator', () => {
   });
 
   describe('Error Handling', () => {
-    it('should fail open on policy evaluation error', async () => {
+    it('should fail closed for sensitive policies on evaluation error', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockRejectedValue(new Error('network down'));
       const brokenPolicy: Policy = {
         id: BigInt(13),
         userId: BigInt(1),
@@ -701,7 +702,7 @@ describe('PolicyEvaluator', () => {
         enabled: true,
         priority: 100,
         config: {
-          webhook_url: 'http://invalid-url-that-will-timeout',
+          webhook_url: 'https://example.com/hook',
           webhook_timeout_ms: 100,
         },
         createdAt: new Date(),
@@ -722,8 +723,43 @@ describe('PolicyEvaluator', () => {
 
       const result = await evaluator.evaluate(context);
 
-      // Should fail open (allow) on webhook error
-      expect(result.allowed).toBe(true);
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('Policy evaluation error (blocked)');
+      fetchSpy.mockRestore();
+    });
+
+    it('should block unsafe webhook targets', async () => {
+      const unsafeWebhookPolicy: Policy = {
+        id: BigInt(14),
+        userId: BigInt(1),
+        agentId: null,
+        name: 'Unsafe Webhook Policy',
+        type: 'CUSTOM_WEBHOOK' as any,
+        enabled: true,
+        priority: 100,
+        config: {
+          webhook_url: 'http://127.0.0.1/internal',
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const action: Action = {
+        type: 'http_request',
+        details: {},
+      };
+
+      const context: EvaluationContext = {
+        user: { id: BigInt(1), email: 'test@example.com' } as any,
+        agent: null,
+        action,
+        policies: [unsafeWebhookPolicy],
+      };
+
+      const result = await evaluator.evaluate(context);
+
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('Webhook URL blocked by security policy');
     });
   });
 });

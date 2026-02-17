@@ -18,7 +18,7 @@ type Step = 'confirm' | 'registering' | 'success' | 'error';
 
 export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAgentModalProps) {
     const [step, setStep] = useState<Step>('confirm');
-    const [chain, setChain] = useState('base');
+    const [chain, setChain] = useState('avalanche');
     const [result, setResult] = useState<any>(null);
     const [error, setError] = useState('');
 
@@ -73,8 +73,8 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
                                 onChange={e => setChain(e.target.value)}
                                 className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm"
                             >
-                                <option value="base">Base (Mainnet)</option>
-                                <option value="base-sepolia">Base Sepolia (Testnet)</option>
+                                <option value="avalanche">Avalanche C-Chain (Mainnet)</option>
+                                <option value="avalanche-fuji">Avalanche Fuji (Testnet)</option>
                             </select>
                         </div>
 
@@ -86,7 +86,7 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
                             onClick={handleRegister}
                             className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors cursor-pointer"
                         >
-                            Register on {chain === 'base-sepolia' ? 'Testnet' : 'Mainnet'}
+                            Register on {chain === 'avalanche-fuji' ? 'Testnet' : 'Mainnet'}
                         </button>
                     </>
                 )}

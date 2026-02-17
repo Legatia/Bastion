@@ -28,6 +28,10 @@ const envConfig: EnvConfig = {
         'CDP_API_KEY_ID',
         'CDP_API_KEY_SECRET',
         'CDP_WALLET_SECRET',
+        'ATTESTATION_CONTRACT_ADDRESS',
+        'ATTESTATION_NETWORK',
+        'ATTESTATION_WALLET_NAME',
+        'ATTEST_DECISION_ACTION_TYPES',
     ],
 };
 
@@ -49,6 +53,10 @@ export function validateEnv(): void {
             if (!process.env[envVar]) {
                 warnings.push(envVar);
             }
+        }
+
+        if (!process.env.FRONTEND_URL) {
+            missing.push('FRONTEND_URL');
         }
     }
 
@@ -72,6 +80,14 @@ export function validateEnv(): void {
         if (jwtSecret.includes('your') || jwtSecret.includes('secret') || jwtSecret.includes('change')) {
             logger.error('JWT_SECRET appears to be a placeholder value. Use a strong random secret in production.');
             throw new Error('JWT_SECRET is not secure for production');
+        }
+
+        try {
+            // Fail fast if FRONTEND_URL cannot be used for checkout/portal return URLs.
+            new URL(process.env.FRONTEND_URL as string);
+        } catch {
+            logger.error('FRONTEND_URL must be a valid absolute URL in production');
+            throw new Error('Invalid FRONTEND_URL');
         }
     }
 

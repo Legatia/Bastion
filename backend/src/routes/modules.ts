@@ -107,6 +107,14 @@ router.post('/modules/checkout', authenticateApiKey, async (req: Request, res: R
         const userId = req.user!.id;
         const userEmail = req.user!.email;
         const { tier, includeOpenclaw } = req.body;
+        const frontendUrl = process.env.FRONTEND_URL;
+
+        if (!frontendUrl) {
+            return res.status(500).json({
+                error: 'Configuration error',
+                message: 'FRONTEND_URL not configured',
+            });
+        }
 
         if (!tier || !['STARTER', 'PRO'].includes(tier)) {
             return res.status(400).json({
@@ -174,7 +182,7 @@ router.post('/modules/checkout', authenticateApiKey, async (req: Request, res: R
         const session = await StripeService.createCheckoutSession({
             customerId,
             lineItems,
-            returnUrl: `${process.env.FRONTEND_URL}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
+            returnUrl: `${frontendUrl}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
             clientReferenceId: userId,
             metadata,
             mode: 'subscription',
@@ -195,6 +203,14 @@ router.post('/modules/portal', authenticateApiKey, async (req: Request, res: Res
     try {
         const userId = req.user!.id;
         const user = await prisma.user.findUnique({ where: { id: userId } });
+        const frontendUrl = process.env.FRONTEND_URL;
+
+        if (!frontendUrl) {
+            return res.status(500).json({
+                error: 'Configuration error',
+                message: 'FRONTEND_URL not configured',
+            });
+        }
 
         if (!user?.stripeCustomerId) {
             return res.status(404).json({ error: 'No billing account found' });
@@ -202,7 +218,7 @@ router.post('/modules/portal', authenticateApiKey, async (req: Request, res: Res
 
         const url = await StripeService.createPortalSession(
             user.stripeCustomerId,
-            `${process.env.FRONTEND_URL}/billing`
+            `${frontendUrl}/billing`
         );
 
         res.json({ url });

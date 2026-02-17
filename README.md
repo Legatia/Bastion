@@ -18,7 +18,7 @@
 Bastion Protocol is the security layer for autonomous AI agents. It sits between your agent and the outside world as an HTTP proxy, enforcing security policies in real time. Zero code changes. Sub-50ms latency.
 
 - **Policy Engine** — 9 policy types (DLP, rate limits, spending caps, blocklists, time windows, etc.) with 30+ built-in detection patterns
-- **On-Chain Identity (ERC-8004)** — Register agents on Base with verifiable identity and reputation scores
+- **On-Chain Identity (ERC-8004)** — Register agents on Avalanche with verifiable identity and reputation scores
 - **MoltMind Behavioral Monitor** — Statistical baselines, drift detection, health scoring, and anomaly alerts
 - **CDP Wallets** — Coinbase-managed wallets for agent transactions and x402 support
 
@@ -45,7 +45,7 @@ integrations/     Framework examples (CrewAI, LangGraph, ERC-8004 verifier)
 | `dlp-scanner` | 30+ regex patterns for PII, secrets, API keys |
 | `quota-service` | Tier-based feature gating and usage limits |
 | `stripe-service` | Checkout sessions, customer portal, webhook verification |
-| `erc8004` | On-chain agent registration and verification on Base |
+| `erc8004` | On-chain agent registration and verification on Avalanche |
 | `cdp-wallet-service` | Coinbase Developer Platform wallet provisioning |
 | `baselineEngine` | Calculates behavioral baselines per agent |
 | `driftDetector` | Detects cognitive drift and generates health scores |
@@ -165,6 +165,7 @@ All endpoints are under `/v1/`.
 | `GET` | `/agents/:id/profile.json` | Public | ERC-8004 registration file |
 | `POST` | `/agents/:id/verify` | API Key | Prepare on-chain registration tx |
 | `POST` | `/agents/:id/register` | API Key | Server-side registration via CDP wallet |
+| `GET` | `/attest/wallet` | API Key | Attestation wallet address, network, and balances |
 | `GET` | `/agents/:id/wallet` | API Key | CDP wallet address and balances |
 | `GET` | `/agents/:id/health` | API Key | MoltMind health score (STARTER+) |
 | `GET` | `/agents/:id/alerts` | API Key | Cognitive alerts (PRO) |
@@ -229,6 +230,10 @@ See [`backend/.env.example`](./backend/.env.example) for the full list. Key vari
 | `CDP_API_KEY_ID` | Optional | Coinbase Developer Platform API key ID |
 | `CDP_API_KEY_SECRET` | Optional | Coinbase Developer Platform API key secret |
 | `CDP_WALLET_SECRET` | Optional | Coinbase Developer Platform wallet secret |
+| `ATTESTATION_CONTRACT_ADDRESS` | Optional | On-chain attestation contract address for policy/decision receipts |
+| `ATTESTATION_NETWORK` | Optional | Network for attestations (default `avalanche`) |
+| `ATTESTATION_WALLET_NAME` | Optional | CDP wallet name used for attestations (default `bastion-attestor`) |
+| `ATTEST_DECISION_ACTION_TYPES` | Optional | Comma-separated critical action types to anchor (e.g. `payment,transfer,swap`) |
 | `ENCRYPTION_KEY` | Recommended | AES-256 key for audit log encryption |
 
 ---
@@ -244,6 +249,39 @@ See [`backend/.env.example`](./backend/.env.example) for the full list. Key vari
 - HMAC-SHA256 webhook verification
 - DLP scanner with 30+ built-in patterns for PII, secrets, and API keys
 - Cryptographically random referral codes
+
+---
+
+## On-Chain Attestations
+
+Bastion can anchor policy changes and critical decision receipts on-chain using a dedicated CDP wallet (`bastion-attestor` by default).
+
+- Contract source: `contracts/attestor/src/BastionAttestor.sol`
+- Wallet endpoint: `GET /v1/attest/wallet`
+- Triggered on:
+  - Policy `create/update/delete`
+  - Critical `/authorize` decisions (blocked/error/spending/critical action types)
+
+### Deploy to Avalanche Fuji
+
+```bash
+cd contracts/attestor
+forge create src/BastionAttestor.sol:BastionAttestor \
+  --rpc-url https://api.avax-test.network/ext/bc/C/rpc \
+  --private-key $DEPLOYER_PRIVATE_KEY \
+  --chain-id 43113 \
+  --broadcast
+```
+
+Then set:
+
+```bash
+ATTESTATION_CONTRACT_ADDRESS=0x...
+ATTESTATION_NETWORK=avalanche-fuji
+ATTESTATION_WALLET_NAME=bastion-attestor
+```
+
+Restart the backend after updating env vars.
 
 ---
 

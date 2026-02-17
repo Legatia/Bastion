@@ -97,7 +97,7 @@ model Agent {
 
   // ERC-8004 On-chain Identity
   onchainId           String?   // tokenId from registry
-  registryChain       String?   // "base-sepolia" | "base"
+  registryChain       String?   // e.g. "avalanche" | "avalanche-fuji"
   registryAddress     String?   // Identity Registry contract address
   agentURI            String?   // URL to registration file
   ownerAddress        String?   // Wallet that owns the NFT

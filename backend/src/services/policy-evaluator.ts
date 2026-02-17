@@ -2,6 +2,8 @@
 // Core logic for determining if an action should be allowed or blocked
 
 import { prisma } from '../lib/prisma';
+import dns from 'node:dns/promises';
+import net from 'node:net';
 import {
   Action,
   Policy,
@@ -13,6 +15,13 @@ import { DLPScanner } from './dlp-scanner';
 import { logger } from '../middleware/logger';
 
 export class PolicyEvaluator {
+  private static readonly FAIL_CLOSED_POLICY_TYPES = new Set([
+    'DLP',
+    'ALLOWLIST',
+    'BLOCKLIST',
+    'CUSTOM_WEBHOOK',
+  ]);
+
   /**
    * Evaluate an action against all applicable policies
    */
@@ -81,9 +90,22 @@ export class PolicyEvaluator {
       }
     } catch (error) {
       logger.error(`Error evaluating policy ${policy.id}:`, error);
-      // Fail open or closed? For now, fail open (allow)
-      return { allowed: true, reason: 'Policy evaluation error' };
+      if (this.shouldFailClosed(policy.type)) {
+        return {
+          allowed: false,
+          reason: `Policy evaluation error (blocked): ${policy.type}`,
+          policyId: policy.id,
+        };
+      }
+      return { allowed: true, reason: 'Policy evaluation error (allowed)' };
     }
+  }
+
+  private shouldFailClosed(policyType: string): boolean {
+    const mode = (process.env.POLICY_FAIL_MODE || 'selective').toLowerCase();
+    if (mode === 'open') return false;
+    if (mode === 'closed') return true;
+    return PolicyEvaluator.FAIL_CLOSED_POLICY_TYPES.has(policyType);
   }
 
   /**
@@ -478,24 +500,27 @@ export class PolicyEvaluator {
       return { allowed: true };
     }
 
-    // SSRF protection: validate the webhook URL
-    if (!this.isSafeWebhookUrl(webhook_url)) {
+    // SSRF protection: validate the webhook URL and DNS targets
+    if (!(await this.isSafeWebhookUrl(webhook_url))) {
       logger.warn(`[SECURITY] Blocked SSRF attempt to: ${webhook_url}`);
-      return { allowed: true, reason: 'Webhook URL blocked by security policy' };
+      return { allowed: false, reason: 'Webhook URL blocked by security policy', policyId: policy.id };
     }
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), webhook_timeout_ms);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), webhook_timeout_ms);
 
+    try {
       const response = await fetch(webhook_url, {
         method: webhook_method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
         signal: controller.signal,
+        redirect: 'error',
       });
 
-      clearTimeout(timeout);
+      if (!response.ok) {
+        throw new Error(`Webhook returned ${response.status}`);
+      }
 
       const result = (await response.json()) as {
         allowed?: boolean;
@@ -509,8 +534,9 @@ export class PolicyEvaluator {
       };
     } catch (error) {
       logger.error('Webhook evaluation failed:', error);
-      // Fail open (allow) on webhook error
-      return { allowed: true, reason: 'Webhook timeout/error' };
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -518,44 +544,83 @@ export class PolicyEvaluator {
    * Validate that a webhook URL is safe (not targeting internal services).
    * Blocks private IPs, localhost, link-local, and cloud metadata endpoints.
    */
-  private isSafeWebhookUrl(urlStr: string): boolean {
+  private async isSafeWebhookUrl(urlStr: string): Promise<boolean> {
     try {
       const url = new URL(urlStr);
 
-      // Only allow HTTP(S)
-      if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      // Enforce HTTPS in production. Allow HTTP only in local development.
+      if (url.protocol !== 'https:' && !(process.env.NODE_ENV === 'development' && url.protocol === 'http:')) {
         return false;
       }
 
       const hostname = url.hostname.toLowerCase();
+      const port = url.port;
+
+      // Restrict unexpected ports to reduce SSRF surface.
+      if (port && !['80', '443'].includes(port)) {
+        return false;
+      }
 
       // Block localhost variants
       if (
         hostname === 'localhost' ||
         hostname === '0.0.0.0' ||
         hostname === '[::1]' ||
-        hostname === '127.0.0.1'
+        hostname === '127.0.0.1' ||
+        hostname.endsWith('.local')
       ) {
         return false;
       }
 
-      // Block private/reserved IP ranges
-      const parts = hostname.split('.');
-      if (parts.length === 4 && parts.every((p) => /^\d+$/.test(p))) {
-        const octets = parts.map(Number);
-        const [a, b] = octets;
-        if (a === 10) return false;                           // 10.0.0.0/8
-        if (a === 172 && b >= 16 && b <= 31) return false;   // 172.16.0.0/12
-        if (a === 192 && b === 168) return false;             // 192.168.0.0/16
-        if (a === 127) return false;                          // 127.0.0.0/8
-        if (a === 169 && b === 254) return false;             // 169.254.0.0/16 (link-local + cloud metadata)
-        if (a === 0) return false;                            // 0.0.0.0/8
+      // Direct IP literal host
+      if (net.isIP(hostname)) {
+        return !this.isPrivateOrReservedIp(hostname);
+      }
+
+      // Resolve DNS and reject hosts mapping to private/reserved ranges.
+      const resolved = await dns.lookup(hostname, { all: true, verbatim: true });
+      if (!resolved.length) return false;
+
+      for (const entry of resolved) {
+        if (this.isPrivateOrReservedIp(entry.address)) {
+          return false;
+        }
       }
 
       return true;
     } catch {
       return false;
     }
+  }
+
+  private isPrivateOrReservedIp(ip: string): boolean {
+    const normalized = ip.toLowerCase().split('%')[0];
+    const version = net.isIP(normalized);
+    if (!version) return true;
+
+    if (version === 4) {
+      const octets = normalized.split('.').map(Number);
+      if (octets.length !== 4 || octets.some((o) => Number.isNaN(o) || o < 0 || o > 255)) return true;
+      const [a, b] = octets;
+      if (a === 10) return true;                          // 10.0.0.0/8
+      if (a === 127) return true;                         // 127.0.0.0/8
+      if (a === 0) return true;                           // 0.0.0.0/8
+      if (a === 169 && b === 254) return true;            // 169.254.0.0/16
+      if (a === 172 && b >= 16 && b <= 31) return true;   // 172.16.0.0/12
+      if (a === 192 && b === 168) return true;            // 192.168.0.0/16
+      if (a === 100 && b >= 64 && b <= 127) return true;  // 100.64.0.0/10 (CGNAT)
+      if (a >= 224) return true;                          // multicast/reserved
+      return false;
+    }
+
+    if (normalized === '::1' || normalized === '::') return true;
+    if (normalized.startsWith('fe80:')) return true;      // link-local
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true; // unique local
+    if (normalized.startsWith('::ffff:')) {
+      const mapped = normalized.slice('::ffff:'.length);
+      return this.isPrivateOrReservedIp(mapped);
+    }
+    return false;
   }
 
   // Helper methods

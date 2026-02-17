@@ -15,8 +15,8 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
     const [error, setError] = useState('');
     const [txHash, setTxHash] = useState('');
 
-    const chain = 'base';
-    const explorerUrl = 'https://basescan.org';
+    const chain = 'avalanche';
+    const explorerUrl = 'https://snowtrace.io';
 
     const handleRegister = async () => {
         setError('');
@@ -83,7 +83,7 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
                         }}>
                             <p style={{ margin: 0, color: '#93c5fd', fontSize: '0.9rem' }}>
                                 <strong>On-chain verification via ERC-8004.</strong><br />
-                                Your agent gets a verifiable identity on Base. No wallet or signing required.
+                                Your agent gets a verifiable identity on Avalanche. No wallet or signing required.
                             </p>
                         </div>
 
@@ -100,7 +100,7 @@ export default function VerifyAgentModal({ agent, onClose, onSuccess }: VerifyAg
                             border: '1px solid #333'
                         }}>
                             <p style={{ margin: '0 0 8px 0', color: '#888', fontSize: '0.8rem' }}>Network</p>
-                            <p style={{ margin: 0 }}>Base (Mainnet)</p>
+                            <p style={{ margin: 0 }}>Avalanche C-Chain (Mainnet)</p>
                         </div>
 
                         <button onClick={handleRegister} style={{ ...buttonStyle, background: '#22c55e' }}>

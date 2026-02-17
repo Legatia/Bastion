@@ -27,7 +27,7 @@ features:
 
   - icon: 🆔
     title: On-Chain Identity
-    details: ERC-8004 registration on Base. Give your agents verifiable, decentralised identity for trustless agent-to-agent interactions.
+    details: ERC-8004 registration on Avalanche. Give your agents verifiable, decentralised identity for trustless agent-to-agent interactions.
 
   - icon: ⚡
     title: Real-Time Protection

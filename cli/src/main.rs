@@ -159,14 +159,14 @@ enum Commands {
         #[arg(long)]
         agent_id: Option<String>,
 
-        /// Network to query balances on (base or base-sepolia)
-        #[arg(long, default_value = "base")]
+        /// Network to query balances on (default: avalanche; testnet: avalanche-fuji)
+        #[arg(long, default_value = "avalanche")]
         network: String,
     },
     /// [STARTER+] Verify agent on-chain (ERC-8004) — prepares tx for user wallet signing
     Verify {
         /// Chain to register on
-        #[arg(long, default_value = "base")]
+        #[arg(long, default_value = "avalanche")]
         chain: String,
 
         /// Agent ID to verify (uses current directory's agent if not specified)
@@ -188,8 +188,8 @@ enum Commands {
     },
     /// [STARTER+] Register agent on-chain (ERC-8004) via CDP wallet — automated, no signing needed
     Register {
-        /// Chain to register on (base or base-sepolia)
-        #[arg(long, default_value = "base")]
+        /// Chain to register on (default: avalanche; testnet: avalanche-fuji)
+        #[arg(long, default_value = "avalanche")]
         chain: String,
 
         /// Agent ID to register (uses current directory's agent if not specified)

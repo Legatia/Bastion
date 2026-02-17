@@ -195,29 +195,10 @@ router.get('/referrals/invoice-preview', authenticateApiKey, async (req: Request
  * Extended to handle referral codes
  */
 router.post('/auth/register-with-referral', async (req: Request, res: Response) => {
-  try {
-    const { email, password, referral_code } = req.body;
-
-    // Validate referral code if provided
-    let referrer = null;
-    if (referral_code) {
-      referrer = await prisma.user.findUnique({
-        where: { referralCode: referral_code }
-      });
-
-      if (!referrer) {
-        return res.status(400).json({ error: 'Invalid referral code' });
-      }
-    }
-
-    // Create user (reuse existing auth logic)
-    // This is just a placeholder - integrate with your existing register endpoint
-
-    res.json({ message: 'Registration with referral code' });
-  } catch (error) {
-    logger.error('Error registering with referral:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
+  return res.status(501).json({
+    error: 'Not Implemented',
+    message: 'Use POST /v1/auth/register with referral_code instead.',
+  });
 });
 
 export default router;

@@ -82,7 +82,7 @@ export default function Home() {
           <FeatureCard
             icon={<Lock color="var(--secondary)" />}
             title="On-chain Identity"
-            desc="ERC-8004 agent registration on Base. Verifiable on-chain identity with reputation. CDP-managed wallet for agent transactions."
+            desc="ERC-8004 agent registration on Avalanche. Verifiable on-chain identity with reputation. CDP-managed wallet for agent transactions."
           />
           <FeatureCard
             icon={<Activity color="var(--accent)" />}

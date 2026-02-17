@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { authenticateApiKey } from '../middleware/auth';
 import { logger } from '../middleware/logger';
+import { OnchainAttestationService } from '../services/onchain-attestation-service';
 
 const router = Router();
 
@@ -113,6 +114,15 @@ router.post('/policies', authenticateApiKey, async (req: Request, res: Response)
       },
     });
 
+    OnchainAttestationService.attestPolicyChange({
+      userId: req.user.id,
+      policyId: policy.id,
+      eventType: 'CREATED',
+      policyType: policy.type,
+      name: policy.name,
+      config: policy.config,
+    }).catch((err) => logger.error('[ATTEST] Policy create attestation failed:', err));
+
     res.status(201).json({ policy });
   } catch (error: any) {
     logger.error('Error creating policy:', error);
@@ -166,6 +176,15 @@ router.put('/policies/:id', authenticateApiKey, async (req: Request, res: Respon
       data: validated,
     });
 
+    OnchainAttestationService.attestPolicyChange({
+      userId: req.user.id,
+      policyId: policy.id,
+      eventType: 'UPDATED',
+      policyType: policy.type,
+      name: policy.name,
+      config: policy.config,
+    }).catch((err) => logger.error('[ATTEST] Policy update attestation failed:', err));
+
     res.json({ policy });
   } catch (error: any) {
     logger.error('Error updating policy:', error);
@@ -214,6 +233,15 @@ router.delete('/policies/:id', authenticateApiKey, async (req: Request, res: Res
     await prisma.policy.delete({
       where: { id: req.params.id as string },
     });
+
+    OnchainAttestationService.attestPolicyChange({
+      userId: req.user.id,
+      policyId: existing.id,
+      eventType: 'DELETED',
+      policyType: existing.type,
+      name: existing.name,
+      config: existing.config,
+    }).catch((err) => logger.error('[ATTEST] Policy delete attestation failed:', err));
 
     res.json({ message: 'Policy deleted successfully' });
   } catch (error) {

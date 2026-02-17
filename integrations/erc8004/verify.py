@@ -24,15 +24,15 @@ from web3 import Web3
 
 # ERC-8004 Identity Registry addresses
 REGISTRIES = {
-    "base-sepolia": {
-        "address": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
-        "rpc_url": "https://sepolia.base.org",
-        "chain_id": 84532,
-    },
-    "base": {
+    "avalanche-fuji": {
         "address": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-        "rpc_url": "https://mainnet.base.org",
-        "chain_id": 8453,
+        "rpc_url": "https://api.avax-test.network/ext/bc/C/rpc",
+        "chain_id": 43113,
+    },
+    "avalanche": {
+        "address": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+        "rpc_url": "https://api.avax.network/ext/bc/C/rpc",
+        "chain_id": 43114,
     },
 }
 

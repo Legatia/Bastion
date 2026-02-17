@@ -12,7 +12,7 @@ import {
     parseAbi,
     type Hex,
 } from 'viem';
-import { baseSepolia, base } from 'viem/chains';
+import { avalanche, avalancheFuji } from 'viem/chains';
 
 // ERC-8004 Identity Registry ABI (minimal — register + events)
 const REGISTRY_ABI = parseAbi([
@@ -23,15 +23,26 @@ const REGISTRY_ABI = parseAbi([
 
 // Registry addresses per chain
 export const IDENTITY_REGISTRIES: Record<string, { address: string; rpcUrl: string }> = {
-    'base-sepolia': {
-        address: '0x8004A818BFB912233c491871b3d84c89A494BD9e',
-        rpcUrl: 'https://sepolia.base.org',
-    },
-    'base': {
+    'avalanche': {
         address: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432',
-        rpcUrl: 'https://mainnet.base.org',
+        rpcUrl: 'https://api.avax.network/ext/bc/C/rpc',
+    },
+    'avalanche-fuji': {
+        address: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432',
+        rpcUrl: 'https://api.avax-test.network/ext/bc/C/rpc',
     },
 };
+
+function getChainId(chain: string): string {
+    switch (chain) {
+        case 'avalanche':
+            return '43114';
+        case 'avalanche-fuji':
+            return '43113';
+        default:
+            throw new Error(`Unsupported chain: ${chain}`);
+    }
+}
 
 // ERC-8004 Registration File schema
 export interface RegistrationFile {
@@ -83,7 +94,7 @@ export function buildRegistrationFile(
     }
 ): RegistrationFile {
     const registry = IDENTITY_REGISTRIES[options.chain];
-    const chainId = options.chain === 'base-sepolia' ? '84532' : '8453';
+    const chainId = getChainId(options.chain);
 
     return {
         type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
@@ -234,7 +245,7 @@ export function prepareRegistrationTx(
         throw new Error(`Unsupported chain: ${chain}`);
     }
 
-    const chainId = chain === 'base-sepolia' ? 84532 : 8453;
+    const chainId = Number(getChainId(chain));
 
     return {
         to: registry.address,
@@ -259,7 +270,9 @@ export async function verifyRegistrationTx(
         throw new Error(`Unsupported chain: ${chain}`);
     }
 
-    const viemChain = chain === 'base-sepolia' ? baseSepolia : base;
+    const viemChain = chain === 'avalanche'
+        ? avalanche
+        : avalancheFuji;
     const client = createPublicClient({
         chain: viemChain,
         transport: http(registry.rpcUrl),

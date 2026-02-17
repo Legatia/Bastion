@@ -800,13 +800,13 @@ bastion moltmind alerts --limit 10
 Manage on-chain identities via ERC-8004.
 
 **Commands:**
-- `register` - Commit and register the agent on the Base blockchain
+- `register` - Commit and register the agent on the Avalanche blockchain
 - `verify` - Check the on-chain status of an agent ID
 
 **Example:**
 ```bash
-bastion register                    # Defaults to Base mainnet
-bastion register --chain base-sepolia  # Use testnet
+bastion register                         # Defaults to Avalanche mainnet
+bastion register --chain avalanche-fuji # Use testnet
 bastion verify --agent-id 550e8400...
 ```
 

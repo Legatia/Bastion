@@ -7,7 +7,7 @@ The Bastion Desktop App is a native management suite for Mac, Windows, and Linux
 While the CLI is perfect for production servers and CI/CD pipelines, the Desktop App is designed for:
 
 - **Visual Monitoring**: See real-time "Health Badges" for every running agent.
-- **Identity Management**: Verifiably register your agents on the Base blockchain (ERC-8004) via an easy-to-use wizard.
+- **Identity Management**: Verifiably register your agents on the Avalanche blockchain (ERC-8004) via an easy-to-use wizard.
 - **Easy Setup**: Configure your agent runtime and Bastion proxy in 60 seconds without touching the terminal.
 - **Native Experience**: Deep integration with your OS for alerts, background operation, and tray-based management.
 

@@ -254,7 +254,7 @@ export default function Agents() {
                                                 <p style={{ color: '#888', fontSize: '0.8rem', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                     <Wallet size={12} />
                                                     <a
-                                                        href={`https://basescan.org/address/${agent.cdpWalletAddress}`}
+                                                        href={`https://snowtrace.io/address/${agent.cdpWalletAddress}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         style={{ color: '#3b82f6', textDecoration: 'none' }}

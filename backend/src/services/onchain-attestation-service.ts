@@ -1,0 +1,158 @@
+import crypto from 'crypto';
+import { encodeFunctionData, parseAbi, type Hex } from 'viem';
+import { CdpWalletService } from './cdp-wallet-service';
+import { logger } from '../middleware/logger';
+
+const ATTESTATION_ABI = parseAbi([
+  'function attestPolicy(bytes32 digest,string userId,string policyId,string eventType) external',
+  'function attestDecision(bytes32 digest,string userId,string agentId,string actionType,string decision,string logId) external',
+]);
+
+type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]: JsonValue };
+
+function sortJson(value: unknown): JsonValue {
+  if (value === null || typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(sortJson);
+  }
+  if (typeof value === 'object') {
+    const out: Record<string, JsonValue> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      out[key] = sortJson((value as Record<string, unknown>)[key]);
+    }
+    return out;
+  }
+  return String(value);
+}
+
+function hashObject(value: unknown): Hex {
+  const normalized = JSON.stringify(sortJson(value));
+  return `0x${crypto.createHash('sha256').update(normalized).digest('hex')}` as Hex;
+}
+
+function getContractAddress(): `0x${string}` | null {
+  const address = process.env.ATTESTATION_CONTRACT_ADDRESS;
+  if (!address) return null;
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    logger.warn('[ATTEST] Invalid ATTESTATION_CONTRACT_ADDRESS, disabling attestation');
+    return null;
+  }
+  return address as `0x${string}`;
+}
+
+function getAttestationNetwork(): string {
+  return process.env.ATTESTATION_NETWORK || 'avalanche';
+}
+
+function getAttestationWalletName(): string {
+  return process.env.ATTESTATION_WALLET_NAME || 'bastion-attestor';
+}
+
+function shouldAnchorDecision(input: {
+  decision: 'ALLOWED' | 'BLOCKED' | 'ERROR';
+  actionType: string;
+  spendingAmount: number | null;
+}): boolean {
+  if (input.decision === 'BLOCKED' || input.decision === 'ERROR') return true;
+  if (typeof input.spendingAmount === 'number' && input.spendingAmount > 0) return true;
+
+  const defaults = ['payment', 'transfer', 'withdraw', 'swap', 'wallet_transaction'];
+  const configured = process.env.ATTEST_DECISION_ACTION_TYPES
+    ?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const criticalActions = configured && configured.length > 0 ? configured : defaults;
+  return criticalActions.includes(input.actionType);
+}
+
+export class OnchainAttestationService {
+  static async attestPolicyChange(input: {
+    userId: string;
+    policyId: string;
+    eventType: 'CREATED' | 'UPDATED' | 'DELETED';
+    policyType?: string;
+    name?: string;
+    config?: unknown;
+  }): Promise<string | null> {
+    const contractAddress = getContractAddress();
+    if (!contractAddress) return null;
+
+    const digest = hashObject({
+      scope: 'policy',
+      ...input,
+      timestamp: new Date().toISOString(),
+    });
+
+    const data = encodeFunctionData({
+      abi: ATTESTATION_ABI,
+      functionName: 'attestPolicy',
+      args: [digest, input.userId, input.policyId, input.eventType],
+    });
+
+    const tx = await CdpWalletService.sendNamedTransaction({
+      walletName: getAttestationWalletName(),
+      to: contractAddress,
+      data,
+      value: 0n,
+      network: getAttestationNetwork(),
+    });
+
+    logger.info('[ATTEST] Policy attestation submitted', {
+      policyId: input.policyId,
+      eventType: input.eventType,
+      txHash: tx.transactionHash,
+    });
+    return tx.transactionHash;
+  }
+
+  static async attestDecisionReceipt(input: {
+    userId: string;
+    agentId: string | null;
+    actionType: string;
+    decision: 'ALLOWED' | 'BLOCKED' | 'ERROR';
+    reason?: string | null;
+    spendingAmount: number | null;
+    policyId?: string | null;
+    logId: string;
+  }): Promise<string | null> {
+    const contractAddress = getContractAddress();
+    if (!contractAddress) return null;
+    if (!shouldAnchorDecision(input)) return null;
+
+    const digest = hashObject({
+      scope: 'decision',
+      ...input,
+      timestamp: new Date().toISOString(),
+    });
+
+    const data = encodeFunctionData({
+      abi: ATTESTATION_ABI,
+      functionName: 'attestDecision',
+      args: [
+        digest,
+        input.userId,
+        input.agentId || 'none',
+        input.actionType,
+        input.decision,
+        input.logId,
+      ],
+    });
+
+    const tx = await CdpWalletService.sendNamedTransaction({
+      walletName: getAttestationWalletName(),
+      to: contractAddress,
+      data,
+      value: 0n,
+      network: getAttestationNetwork(),
+    });
+
+    logger.info('[ATTEST] Decision receipt submitted', {
+      logId: input.logId,
+      decision: input.decision,
+      txHash: tx.transactionHash,
+    });
+    return tx.transactionHash;
+  }
+}

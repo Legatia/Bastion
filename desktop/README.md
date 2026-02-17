@@ -6,7 +6,7 @@ A one-click desktop application for managing AI agent infrastructure with modula
 
 | Module | Description | Pricing |
 |--------|-------------|---------|
-| **Agent Runtime** | AI agent process lifecycle manager | Base tier |
+| **Agent Runtime** | AI agent process lifecycle manager | Core tier |
 | **ERC-8004** | On-chain identity verification | +$5/mo |
 | **Bastion Proxy** | Security policy enforcement | +$10/mo |
 | **MoltMind** | Cognitive monitoring & health checks | +$15/mo |

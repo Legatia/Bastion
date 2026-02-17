@@ -6,14 +6,15 @@ import { logger } from '../middleware/logger';
 import type { Hex } from 'viem';
 
 // CDP SDK network/token literal types
-type CdpEvmNetwork = 'base' | 'base-sepolia' | 'ethereum' | 'ethereum-sepolia';
-type CdpBalanceNetwork = 'base' | 'base-sepolia' | 'ethereum';
-type CdpFaucetNetwork = 'base-sepolia' | 'ethereum-sepolia';
-type CdpFaucetToken = 'eth' | 'usdc' | 'eurc' | 'cbbtc';
+type CdpEvmNetwork = 'avalanche' | 'avalanche-fuji' | 'ethereum' | 'ethereum-sepolia';
+type CdpBalanceNetwork = 'avalanche' | 'avalanche-fuji' | 'ethereum';
+type CdpFaucetNetwork = 'avalanche-fuji' | 'ethereum-sepolia';
+type CdpFaucetToken = 'avax' | 'eth' | 'usdc' | 'eurc' | 'cbbtc';
 
 export class CdpWalletService {
     private static cdp: any;
     private static serverWalletAddress: string | null = null;
+    private static namedWalletAddresses = new Map<string, string>();
 
     private static async getClient(): Promise<any> {
         if (!this.cdp) {
@@ -28,7 +29,7 @@ export class CdpWalletService {
 
     /**
      * Get (or create) the single Bastion server wallet used for all on-chain registrations.
-     * One wallet registers all agents — simpler funding, visible traction on Basescan.
+     * One wallet registers all agents — simpler funding and accounting.
      */
     static async getServerWallet(): Promise<string> {
         if (this.serverWalletAddress) return this.serverWalletAddress;
@@ -39,6 +40,35 @@ export class CdpWalletService {
 
         logger.info('[CDP] Server wallet ready', { address: account.address });
         return account.address;
+    }
+
+    /**
+     * Get (or create) a named CDP wallet and cache its address.
+     */
+    static async getNamedWallet(name: string): Promise<string> {
+        const trimmed = name.trim();
+        if (!trimmed) {
+            throw new Error('Wallet name is required');
+        }
+
+        const cached = this.namedWalletAddresses.get(trimmed);
+        if (cached) return cached;
+
+        const cdp = await this.getClient();
+        const account = await cdp.evm.getOrCreateAccount({ name: trimmed });
+        this.namedWalletAddresses.set(trimmed, account.address);
+
+        logger.info('[CDP] Named wallet ready', { name: trimmed, address: account.address });
+        return account.address;
+    }
+
+    /**
+     * Resolve the dedicated wallet used for on-chain attestations.
+     */
+    static async getAttestationWallet(): Promise<{ name: string; address: string }> {
+        const name = process.env.ATTESTATION_WALLET_NAME || 'bastion-attestor';
+        const address = await this.getNamedWallet(name);
+        return { name, address };
     }
 
     /**
@@ -65,6 +95,38 @@ export class CdpWalletService {
         });
 
         logger.info('[CDP] Server tx sent', {
+            txHash: result.transactionHash,
+            network: params.network,
+        });
+
+        return { transactionHash: result.transactionHash as Hex };
+    }
+
+    /**
+     * Send a transaction from a named CDP wallet.
+     */
+    static async sendNamedTransaction(params: {
+        walletName: string;
+        to: string;
+        data?: Hex;
+        value?: bigint;
+        network: string;
+    }): Promise<{ transactionHash: Hex }> {
+        const cdp = await this.getClient();
+        const address = await this.getNamedWallet(params.walletName);
+
+        const result = await cdp.evm.sendTransaction({
+            address: address as `0x${string}`,
+            network: params.network as CdpEvmNetwork,
+            transaction: {
+                to: params.to as `0x${string}`,
+                data: params.data,
+                value: params.value ?? 0n,
+            },
+        });
+
+        logger.info('[CDP] Named wallet tx sent', {
+            walletName: params.walletName,
             txHash: result.transactionHash,
             network: params.network,
         });
@@ -180,6 +242,17 @@ export class CdpWalletService {
     }
 
     /**
+     * Get token balances for an arbitrary address.
+     */
+    static async getAddressBalances(address: string, network: string) {
+        const cdp = await this.getClient();
+        return cdp.evm.listTokenBalances({
+            address: address as `0x${string}`,
+            network: network as CdpBalanceNetwork,
+        });
+    }
+
+    /**
      * Request testnet tokens from the CDP faucet.
      * Only allows sepolia networks for safety.
      */
@@ -188,8 +261,8 @@ export class CdpWalletService {
         network: string,
         token: string = 'eth'
     ): Promise<{ transactionHash: string }> {
-        if (!network.includes('sepolia')) {
-            throw new Error('Faucet is only available on sepolia testnet networks');
+        if (!network.includes('sepolia') && network !== 'avalanche-fuji') {
+            throw new Error('Faucet is only available on supported testnet networks (e.g. avalanche-fuji)');
         }
 
         const cdp = await this.getClient();

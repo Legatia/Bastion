@@ -14,9 +14,9 @@ bastion wallet
 
 **Output:**
 ```
-💳 Agent Wallet (Base)
+💳 Agent Wallet (Avalanche)
 Address: 0x123...abc
-Balance: 0.05 ETH
+Balance: 0.05 AVAX
 Status: ✅ Active
 ```
 
