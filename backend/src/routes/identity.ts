@@ -383,14 +383,10 @@ router.post('/agents/:id/register', authenticateApiKey, async (req: Request, res
 
 /**
  * GET /v1/attest/wallet
- * Get the dedicated CDP wallet used for policy/decision attestations.
+ * Public endpoint exposing the dedicated attestation wallet address for funding/monitoring.
  */
-router.get('/attest/wallet', authenticateApiKey, async (req: Request, res: Response) => {
+router.get('/attest/wallet', async (req: Request, res: Response) => {
     try {
-        if (!req.user) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-
         const network = process.env.ATTESTATION_NETWORK || 'avalanche';
         const wallet = await CdpWalletService.getAttestationWallet();
 
