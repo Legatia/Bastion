@@ -60,8 +60,16 @@ export default function Login() {
                             throw new Error(data.error);
                         }
                         localStorage.setItem('bastion_api_key', data.apiKey);
-                        console.log('[Google OAuth] Success! Redirecting to /analytics');
-                        window.location.href = '/analytics';
+                        if (data.user) {
+                            localStorage.setItem('bastion_user', JSON.stringify(data.user));
+                        }
+                        const isAdmin = Boolean(data.user?.isAdmin);
+                        const { redirect } = router.query;
+                        const target = redirect && typeof redirect === 'string'
+                            ? decodeURIComponent(redirect)
+                            : isAdmin ? '/admin' : '/analytics';
+                        console.log('[Google OAuth] Success! Redirecting to', target);
+                        window.location.href = target;
                     })
                     .catch(err => {
                         console.error('[Google OAuth] Error:', err);
@@ -112,13 +120,16 @@ export default function Login() {
             }
 
             localStorage.setItem('bastion_api_key', data.apiKey);
+            if (data.user) {
+                localStorage.setItem('bastion_user', JSON.stringify(data.user));
+            }
 
             // Handle Redirect (e.g., back to Checkout)
             const { redirect } = router.query;
             if (redirect && typeof redirect === 'string') {
                 window.location.href = decodeURIComponent(redirect);
             } else {
-                window.location.href = '/analytics';
+                window.location.href = data.user?.isAdmin ? '/admin' : '/analytics';
             }
 
         } catch (err: any) {

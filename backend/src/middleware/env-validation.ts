@@ -28,11 +28,15 @@ const envConfig: EnvConfig = {
         'CDP_API_KEY_ID',
         'CDP_API_KEY_SECRET',
         'CDP_WALLET_SECRET',
+        'ADMIN_EMAILS',
         'ATTESTATION_CONTRACT_ADDRESS',
         'ATTESTATION_NETWORK',
         'ATTESTATION_WALLET_NAME',
         'ATTESTATION_RPC_URL',
         'ATTEST_DECISION_ACTION_TYPES',
+        'ATTEST_HEALTH_ENABLED',
+        'ATTEST_HEALTH_INTERVAL_HOURS',
+        'ATTEST_HEALTH_MIN_EVENTS',
     ],
 };
 

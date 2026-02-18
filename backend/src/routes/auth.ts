@@ -19,6 +19,20 @@ function generateSecureApiKey(): string {
     return `bst_live_${b64}`;
 }
 
+function resolveAdminEmails(): Set<string> {
+    const raw = process.env.ADMIN_EMAILS || '';
+    return new Set(
+        raw
+            .split(',')
+            .map((email) => email.trim().toLowerCase())
+            .filter(Boolean)
+    );
+}
+
+function isAdminEmail(email: string): boolean {
+    return resolveAdminEmails().has(email.trim().toLowerCase());
+}
+
 const loginSchema = z.object({
     email: z.string().email(),
     password: z.string(),
@@ -56,6 +70,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
                 email: user.email,
                 name: user.name,
                 tier: user.tier,
+                isAdmin: isAdminEmail(user.email),
             },
             apiKey: user.apiKey,
         });
@@ -140,6 +155,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
                 email: user.email,
                 name: user.name,
                 tier: user.tier,
+                isAdmin: isAdminEmail(user.email),
             },
             apiKey: user.apiKey,
             referred_by: referral_code ? true : false
@@ -219,6 +235,7 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                 email: user.email,
                 name: user.name,
                 tier: user.tier,
+                isAdmin: isAdminEmail(user.email),
             },
             apiKey: user.apiKey,
         });

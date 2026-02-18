@@ -8,11 +8,23 @@ export default function Navbar() {
     const router = useRouter();
     const isActive = (path: string) => router.pathname === path;
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
 
     useEffect(() => {
         const key = localStorage.getItem('bastion_api_key');
+        const userRaw = localStorage.getItem('bastion_user');
+        let admin = false;
+        if (userRaw) {
+            try {
+                const parsed = JSON.parse(userRaw);
+                admin = Boolean(parsed?.isAdmin);
+            } catch {
+                admin = false;
+            }
+        }
         setIsLoggedIn(!!key);
+        setIsAdmin(admin);
     }, []);
 
     // Close menu on route change
@@ -22,7 +34,9 @@ export default function Navbar() {
 
     const handleLogout = () => {
         localStorage.removeItem('bastion_api_key');
+        localStorage.removeItem('bastion_user');
         setIsLoggedIn(false);
+        setIsAdmin(false);
         router.push('/');
     };
 
@@ -43,6 +57,7 @@ export default function Navbar() {
             <a href="https://bastion-docs.vercel.app" target="_blank" rel="noopener noreferrer" style={{ color: '#888', textDecoration: 'none', fontSize: '0.9rem' }}>Docs</a>
             <Link href="/billing" style={linkStyle('/billing')}>Billing</Link>
             <Link href="/profile" style={linkStyle('/profile')}>Profile</Link>
+            {isAdmin && <Link href="/admin" style={linkStyle('/admin')}>Admin</Link>}
         </>
     );
 

@@ -231,11 +231,15 @@ See [`backend/.env.example`](./backend/.env.example) for the full list. Key vari
 | `CDP_API_KEY_ID` | Optional | Coinbase Developer Platform API key ID |
 | `CDP_API_KEY_SECRET` | Optional | Coinbase Developer Platform API key secret |
 | `CDP_WALLET_SECRET` | Optional | Coinbase Developer Platform wallet secret |
+| `ADMIN_EMAILS` | Optional | Comma-separated admin account emails for dashboard admin access |
 | `ATTESTATION_CONTRACT_ADDRESS` | Optional | On-chain attestation contract address for policy/decision receipts |
 | `ATTESTATION_NETWORK` | Optional | Network for attestations (default `avalanche`) |
 | `ATTESTATION_WALLET_NAME` | Optional | CDP wallet name used for attestations (default `bastion-attestor`) |
 | `ATTESTATION_RPC_URL` | Optional | RPC URL override for `/v1/attest/status` contract code checks |
 | `ATTEST_DECISION_ACTION_TYPES` | Optional | Comma-separated critical action types to anchor (e.g. `payment,transfer,swap`) |
+| `ATTEST_HEALTH_ENABLED` | Optional | Enable periodic MoltMind health checkpoint attestations (default `false`) |
+| `ATTEST_HEALTH_INTERVAL_HOURS` | Optional | Checkpoint interval in hours (default `24`, max `168`) |
+| `ATTEST_HEALTH_MIN_EVENTS` | Optional | Minimum events in interval to attest when no high/critical alerts (default `10`) |
 | `ENCRYPTION_KEY` | Recommended | AES-256 key for audit log encryption |
 
 ---
@@ -264,6 +268,7 @@ Bastion can anchor policy changes and critical decision receipts on-chain using 
 - Triggered on:
   - Policy `create/update/delete`
   - Critical `/authorize` decisions (blocked/error/spending/critical action types)
+  - Periodic MoltMind health checkpoints (score + alert summary hash)
 
 ### Deploy to Avalanche Fuji
 
@@ -282,6 +287,9 @@ Then set:
 ATTESTATION_CONTRACT_ADDRESS=0x...
 ATTESTATION_NETWORK=avalanche-fuji
 ATTESTATION_WALLET_NAME=bastion-attestor
+ATTEST_HEALTH_ENABLED=true
+ATTEST_HEALTH_INTERVAL_HOURS=24
+ATTEST_HEALTH_MIN_EVENTS=10
 ```
 
 Restart the backend after updating env vars.

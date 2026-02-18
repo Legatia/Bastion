@@ -50,6 +50,12 @@ function getAttestationWalletName(): string {
   return process.env.ATTESTATION_WALLET_NAME || 'bastion-attestor';
 }
 
+function envBool(name: string, defaultValue: boolean): boolean {
+  const raw = process.env[name];
+  if (!raw) return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
+}
+
 function shouldAnchorDecision(input: {
   decision: 'ALLOWED' | 'BLOCKED' | 'ERROR';
   actionType: string;
@@ -68,6 +74,22 @@ function shouldAnchorDecision(input: {
 }
 
 export class OnchainAttestationService {
+  static isHealthCheckpointEnabled(): boolean {
+    return envBool('ATTEST_HEALTH_ENABLED', false);
+  }
+
+  static getHealthCheckpointIntervalHours(): number {
+    const parsed = Number.parseInt(process.env.ATTEST_HEALTH_INTERVAL_HOURS || '24', 10);
+    if (!Number.isFinite(parsed) || parsed < 1) return 24;
+    return Math.min(parsed, 24 * 7);
+  }
+
+  static getHealthCheckpointMinEvents(): number {
+    const parsed = Number.parseInt(process.env.ATTEST_HEALTH_MIN_EVENTS || '10', 10);
+    if (!Number.isFinite(parsed) || parsed < 0) return 10;
+    return parsed;
+  }
+
   static async attestPolicyChange(input: {
     userId: string;
     policyId: string;
@@ -151,6 +173,58 @@ export class OnchainAttestationService {
     logger.info('[ATTEST] Decision receipt submitted', {
       logId: input.logId,
       decision: input.decision,
+      txHash: tx.transactionHash,
+    });
+    return tx.transactionHash;
+  }
+
+  static async attestHealthCheckpoint(input: {
+    userId: string;
+    agentId: string;
+    intervalStartIso: string;
+    intervalEndIso: string;
+    eventCount: number;
+    unacknowledgedAlerts: number;
+    highAlerts: number;
+    criticalAlerts: number;
+    healthScore: number | null;
+    identityCoherence: number | null;
+    behavioralStability: number | null;
+    interactionHealth: number | null;
+    activeFlags: string[];
+  }): Promise<string | null> {
+    const contractAddress = getContractAddress();
+    if (!contractAddress) return null;
+    if (!this.isHealthCheckpointEnabled()) return null;
+
+    const digest = hashObject({
+      scope: 'health_checkpoint',
+      ...input,
+      timestamp: new Date().toISOString(),
+    });
+
+    const healthValue = input.healthScore === null ? 'na' : String(input.healthScore);
+    const decision = `score:${healthValue}|alerts:${input.unacknowledgedAlerts}|critical:${input.criticalAlerts}|events:${input.eventCount}`;
+    const logId = `health:${input.agentId}:${input.intervalEndIso}`;
+
+    const data = encodeFunctionData({
+      abi: ATTESTATION_ABI,
+      functionName: 'attestDecision',
+      args: [digest, input.userId, input.agentId, 'health_checkpoint', decision, logId],
+    });
+
+    const tx = await CdpWalletService.sendNamedTransaction({
+      walletName: getAttestationWalletName(),
+      to: contractAddress,
+      data,
+      value: 0n,
+      network: getAttestationNetwork(),
+    });
+
+    logger.info('[ATTEST] Health checkpoint submitted', {
+      agentId: input.agentId,
+      score: input.healthScore,
+      alerts: input.unacknowledgedAlerts,
       txHash: tx.transactionHash,
     });
     return tx.transactionHash;

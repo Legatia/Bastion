@@ -445,6 +445,11 @@ router.get('/attest/status', async (_req: Request, res: Response) => {
         const contractAddress = process.env.ATTESTATION_CONTRACT_ADDRESS || null;
         const rpcUrl = process.env.ATTESTATION_RPC_URL || NETWORK_RPC_FALLBACKS[network] || null;
         const cdpNetworkSupported = CDP_SUPPORTED_EVM_NETWORKS.has(network);
+        const healthCheckpointEnabled = ['1', 'true', 'yes', 'on'].includes(
+            (process.env.ATTEST_HEALTH_ENABLED || 'false').toLowerCase()
+        );
+        const healthCheckpointIntervalHours = Number.parseInt(process.env.ATTEST_HEALTH_INTERVAL_HOURS || '24', 10);
+        const healthCheckpointMinEvents = Number.parseInt(process.env.ATTEST_HEALTH_MIN_EVENTS || '10', 10);
 
         const wallet = await CdpWalletService.getAttestationWallet();
 
@@ -493,6 +498,11 @@ router.get('/attest/status', async (_req: Request, res: Response) => {
             contractAddress,
             contractCodePresent,
             contractCodeCheckError,
+            healthCheckpoint: {
+                enabled: healthCheckpointEnabled,
+                intervalHours: Number.isFinite(healthCheckpointIntervalHours) ? healthCheckpointIntervalHours : 24,
+                minEvents: Number.isFinite(healthCheckpointMinEvents) ? healthCheckpointMinEvents : 10,
+            },
             lastErrorHint,
         });
     } catch (error: any) {
