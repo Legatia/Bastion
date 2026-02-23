@@ -3,7 +3,7 @@
 
 mod modules;
 
-use modules::openclaw::{install_openclaw, run_openclaw, stop_openclaw, save_config, OpenClawState};
+use modules::openclaw::{install_openclaw, run_openclaw, stop_openclaw, save_config, get_openclaw_status, OpenClawState};
 use modules::bastion::{start_bastion_proxy, stop_bastion_proxy, get_bastion_status, BastionState};
 use modules::identity::{check_identity_status, verify_identity, register_agent, get_agent_wallet};
 use modules::moltmind::{
@@ -122,7 +122,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            install_openclaw, run_openclaw, stop_openclaw, save_config,
+            install_openclaw, run_openclaw, stop_openclaw, save_config, get_openclaw_status,
             start_bastion_proxy, stop_bastion_proxy, get_bastion_status,
             verify_identity, check_identity_status, register_agent, get_agent_wallet,
             start_moltmind, stop_moltmind, get_moltmind_status, get_behavior_events,

@@ -25,6 +25,8 @@ interface IndustryProfilesResponse {
 
 export default function Dashboard() {
     const navigate = useNavigate();
+    const [runtimeRunning, setRuntimeRunning] = useState(false);
+    const [runtimeBusy, setRuntimeBusy] = useState(false);
     const [proxyRunning, setProxyRunning] = useState(false);
     const [identity, setIdentity] = useState<IdentityStatus | null>(null);
     const [loadingIdentity, setLoadingIdentity] = useState(false);
@@ -48,6 +50,14 @@ export default function Dashboard() {
 
     const checkStatus = async () => {
         try {
+            const isRuntimeRunning = await invoke('get_openclaw_status') as boolean;
+            setRuntimeRunning(isRuntimeRunning);
+        } catch (e) {
+            console.error("Runtime status check failed", e);
+            setRuntimeRunning(false);
+        }
+
+        try {
             const isRunning = await invoke('get_bastion_status') as boolean;
             setProxyRunning(isRunning);
         } catch (e) {
@@ -66,6 +76,24 @@ export default function Dashboard() {
             setLogs(events.reverse());
         } catch (e) {
             console.error("Log fetch failed", e);
+        }
+    };
+
+    const toggleRuntime = async () => {
+        setRuntimeBusy(true);
+        try {
+            if (runtimeRunning) {
+                await invoke('stop_openclaw');
+                setRuntimeRunning(false);
+            } else {
+                await invoke('run_openclaw');
+                setRuntimeRunning(true);
+            }
+        } catch (e) {
+            console.error("Runtime toggle failed", e);
+            alert("Runtime action failed: " + e);
+        } finally {
+            setRuntimeBusy(false);
         }
     };
 
@@ -138,11 +166,27 @@ export default function Dashboard() {
                         <h3 className="text-zinc-400 text-sm font-medium mb-3 flex items-center gap-2">
                             <Activity size={16} /> Runtime Status
                         </h3>
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                            <span className="text-xl font-bold">Active</span>
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <div className={clsx("w-2.5 h-2.5 rounded-full", runtimeRunning ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-zinc-700")} />
+                                <span className={clsx("text-xl font-bold", runtimeRunning ? "text-white" : "text-zinc-500")}>
+                                    {runtimeRunning ? "Running" : "Stopped"}
+                                </span>
+                            </div>
+                            <button
+                                onClick={toggleRuntime}
+                                disabled={runtimeBusy}
+                                className={clsx(
+                                    "p-2 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                                    runtimeRunning ? "bg-red-500/10 text-red-500 hover:bg-red-500/20" : "bg-green-500/10 text-green-500 hover:bg-green-500/20"
+                                )}
+                            >
+                                <Power size={18} />
+                            </button>
                         </div>
-                        <p className="text-sm text-zinc-500">Agent runtime active</p>
+                        <p className="text-sm text-zinc-500">
+                            {runtimeRunning ? "OpenClaw process active" : "OpenClaw process not running"}
+                        </p>
                     </div>
 
                     {/* Identity Card */}

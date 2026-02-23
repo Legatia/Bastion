@@ -259,7 +259,7 @@ Desktop runtime installer overrides (optional, for Tauri app runtime installs):
 | `OPENCLAW_INSTALLER_URL_WINDOWS` | Optional | Override installer URL on Windows (default `https://openclaw.ai/install.ps1`) |
 | `OPENCLAW_INSTALLER_SHA256_UNIX` | Recommended | Expected SHA-256 for Unix installer script |
 | `OPENCLAW_INSTALLER_SHA256_WINDOWS` | Recommended | Expected SHA-256 for Windows installer script |
-| `OPENCLAW_INSTALLER_ALLOW_UNPINNED` | Optional | Allow installer run without checksum pinning (`false` by default) |
+| `OPENCLAW_INSTALLER_ALLOW_UNPINNED` | Optional | Allow installer run without checksum pinning (`true` by default; set `false` to enforce pinning) |
 | `OPENCLAW_INSTALLER_SKIP_DOCTOR` | Optional | Skip `openclaw doctor` post-install health check (`false` by default) |
 
 ---

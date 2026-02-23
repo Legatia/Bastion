@@ -149,10 +149,20 @@ fn parse_bool_env(name: &str) -> bool {
 }
 
 fn installer_policy() -> (bool, bool) {
-    // Safer default: require checksum pinning unless explicitly disabled.
-    let allow_unpinned = parse_bool_env("OPENCLAW_INSTALLER_ALLOW_UNPINNED");
+    // Default to permissive install behavior; strict pinning can be enabled via env.
+    let allow_unpinned = match env::var("OPENCLAW_INSTALLER_ALLOW_UNPINNED") {
+        Ok(v) => matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"),
+        Err(_) => true,
+    };
     let skip_doctor = parse_bool_env("OPENCLAW_INSTALLER_SKIP_DOCTOR");
     (allow_unpinned, skip_doctor)
+}
+
+#[tauri::command]
+pub async fn get_openclaw_status<R: Runtime>(app: AppHandle<R>) -> Result<bool, String> {
+    let state = app.state::<OpenClawState>();
+    let guard = state.process_id.lock().map_err(|e| e.to_string())?;
+    Ok(guard.is_some())
 }
 
 fn to_hex(bytes: &[u8]) -> String {

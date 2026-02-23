@@ -48,6 +48,7 @@ const FEATURE_LABELS: Record<string, string> = {
 
 export default function Billing() {
     const router = useRouter();
+    const supportEmail = 'bastion.feedback@legatia.solutions';
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [tierStatus, setTierStatus] = useState<TierStatus | null>(null);
     const [tiers, setTiers] = useState<TierInfo[]>([]);
@@ -122,6 +123,21 @@ export default function Billing() {
     const currentTier = tierStatus?.tier || 'FREE';
     const tierOrder = ['FREE', 'STARTER', 'PRO', 'ENTERPRISE'];
     const currentTierIndex = tierOrder.indexOf(currentTier);
+    const enterpriseContactHref = `mailto:${supportEmail}?subject=${encodeURIComponent('Enterprise Plan Inquiry')}&body=${encodeURIComponent([
+        'Hi Bastion team,',
+        '',
+        "We're interested in a customized Enterprise deployment.",
+        '',
+        'Company:',
+        'Industry:',
+        'Primary workflows to safeguard:',
+        'Estimated agent count:',
+        'Security/compliance requirements:',
+        'Target go-live date:',
+        '',
+        `Current Bastion tier: ${currentTier}`,
+        'Source: Dashboard billing page',
+    ].join('\n'))}`;
 
     return (
         <div style={{ minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
@@ -234,6 +250,11 @@ export default function Billing() {
                                             <span style={{ fontSize: '0.85rem' }}>{FEATURE_LABELS[f] || f}</span>
                                         </div>
                                     ))}
+                                    {t.tier === 'ENTERPRISE' && (
+                                        <p style={{ marginTop: '0.9rem', marginBottom: 0, color: '#a7a7a7', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                                            Includes guided B2B setup: industry-specific runtime profiles, controlled feature surface, and rollout support.
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Action Button */}
@@ -267,7 +288,7 @@ export default function Billing() {
                                     </button>
                                 ) : t.tier === 'ENTERPRISE' ? (
                                     <a
-                                        href="mailto:bastion.feedback@legatia.solutions?subject=Enterprise%20Plan"
+                                        href={enterpriseContactHref}
                                         style={{
                                             display: 'block',
                                             background: `${color}20`,
@@ -282,7 +303,7 @@ export default function Billing() {
                                             textDecoration: 'none',
                                         }}
                                     >
-                                        Contact Sales
+                                        Talk to Sales
                                     </a>
                                 ) : !isLoggedIn ? (
                                     <button
