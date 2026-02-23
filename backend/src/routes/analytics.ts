@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateApiKey } from '../middleware/auth';
 import { logger } from '../middleware/logger';
+import { isAdminEmail } from '../utils/admin';
 
 const router = Router();
 
@@ -167,6 +168,117 @@ router.get('/analytics/agents', authenticateApiKey, async (req: Request, res: Re
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch agent analytics',
+    });
+  }
+});
+
+/**
+ * GET /v1/admin/launch-metrics
+ * Admin-only launch funnel and revenue snapshot.
+ */
+router.get('/admin/launch-metrics', authenticateApiKey, async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (!isAdminEmail(req.user.email)) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Admin access required' });
+    }
+
+    const now = new Date();
+    const days = Number.parseInt((req.query.days as string) || '30', 10);
+    const windowDays = Number.isFinite(days) && days > 0 ? Math.min(days, 180) : 30;
+    const windowStart = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
+
+    const [
+      signups,
+      activatedUsers,
+      usersWithChecks,
+      usersWithPolicies,
+      paidUsers,
+      starterUsers,
+      proUsers,
+      enterpriseUsers,
+      totalAuthorizeChecks,
+      blockedChecks,
+    ] = await Promise.all([
+      prisma.user.count({
+        where: { createdAt: { gte: windowStart } },
+      }),
+      prisma.user.count({
+        where: {
+          createdAt: { gte: windowStart },
+          agents: { some: {} },
+        },
+      }),
+      prisma.user.count({
+        where: {
+          createdAt: { gte: windowStart },
+          actionLogs: { some: {} },
+        },
+      }),
+      prisma.user.count({
+        where: {
+          createdAt: { gte: windowStart },
+          policies: { some: {} },
+        },
+      }),
+      prisma.user.count({
+        where: { tier: { in: ['STARTER', 'PRO', 'ENTERPRISE'] } },
+      }),
+      prisma.user.count({ where: { tier: 'STARTER' } }),
+      prisma.user.count({ where: { tier: 'PRO' } }),
+      prisma.user.count({ where: { tier: 'ENTERPRISE' } }),
+      prisma.actionLog.count({
+        where: { timestamp: { gte: windowStart } },
+      }),
+      prisma.actionLog.count({
+        where: { timestamp: { gte: windowStart }, decision: 'BLOCKED' },
+      }),
+    ]);
+
+    const starterMrr = starterUsers * 29;
+    const proMrr = proUsers * 79;
+    const estimatedMrr = starterMrr + proMrr;
+
+    const activationRate = signups > 0 ? (activatedUsers / signups) * 100 : 0;
+    const policySetupRate = signups > 0 ? (usersWithPolicies / signups) * 100 : 0;
+    const firstCheckRate = signups > 0 ? (usersWithChecks / signups) * 100 : 0;
+    const blockRate = totalAuthorizeChecks > 0 ? (blockedChecks / totalAuthorizeChecks) * 100 : 0;
+
+    res.json({
+      window: {
+        days: windowDays,
+        start: windowStart.toISOString(),
+        end: now.toISOString(),
+      },
+      funnel: {
+        signups,
+        activatedUsers,
+        usersWithPolicies,
+        usersWithChecks,
+        activationRate: Number(activationRate.toFixed(2)),
+        policySetupRate: Number(policySetupRate.toFixed(2)),
+        firstCheckRate: Number(firstCheckRate.toFixed(2)),
+      },
+      usage: {
+        totalAuthorizeChecks,
+        blockedChecks,
+        blockRate: Number(blockRate.toFixed(2)),
+      },
+      revenue: {
+        paidUsers,
+        starterUsers,
+        proUsers,
+        enterpriseUsers,
+        estimatedMrrUsd: estimatedMrr,
+      },
+    });
+  } catch (error) {
+    logger.error('Error fetching launch metrics:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to fetch launch metrics',
     });
   }
 });

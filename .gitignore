@@ -61,6 +61,7 @@ temp/
 
 # Tests
 backend/scripts/
+backend/src/utils/
 mock_bastion/
 
 # Prisma

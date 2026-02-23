@@ -702,7 +702,8 @@ describe('PolicyEvaluator', () => {
         enabled: true,
         priority: 100,
         config: {
-          webhook_url: 'https://example.com/hook',
+          // Use a public IP literal to avoid DNS lookup/network variability in tests.
+          webhook_url: 'https://8.8.8.8/hook',
           webhook_timeout_ms: 100,
         },
         createdAt: new Date(),

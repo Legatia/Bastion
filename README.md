@@ -18,6 +18,7 @@
 Bastion Protocol is the security layer for autonomous AI agents. It sits between your agent and the outside world as an HTTP proxy, enforcing security policies in real time. Zero code changes. Sub-50ms latency.
 
 - **Policy Engine** — 9 policy types (DLP, rate limits, spending caps, blocklists, time windows, etc.) with 30+ built-in detection patterns
+- **Industry Profiles** — Interchangeable policy bundles that can be applied, exported, and imported per tenant
 - **On-Chain Identity (ERC-8004)** — Register agents on Avalanche with verifiable identity and reputation scores
 - **MoltMind Behavioral Monitor** — Statistical baselines, drift detection, health scoring, and anomaly alerts
 - **CDP Wallets** — Coinbase-managed wallets for agent transactions and x402 support
@@ -160,6 +161,11 @@ All endpoints are under `/v1/`.
 | `POST` | `/authorize` | API Key | Evaluate an action against policies |
 | `*` | `/agents` | API Key | CRUD agents, provision CDP wallets |
 | `*` | `/policies` | API Key | CRUD security policies |
+| `GET` | `/industry-profiles` | API Key | List built-in industry profiles + active profile |
+| `GET` | `/industry-profiles/changelog` | API Key | List applied profile/version history derived from policy tags |
+| `POST` | `/industry-profiles/:profileId/apply` | API Key | Apply a built-in profile overlay to tenant policies |
+| `GET` | `/industry-profiles/export` | API Key | Export tenant policy bundle as profile JSON |
+| `POST` | `/industry-profiles/import` | API Key | Import and apply a tenant profile bundle |
 | `GET` | `/logs` | API Key | Encrypted audit logs |
 | `GET` | `/analytics` | API Key | Usage analytics and summaries |
 | `GET` | `/agents/:id/profile.json` | Public | ERC-8004 registration file |
@@ -167,6 +173,7 @@ All endpoints are under `/v1/`.
 | `POST` | `/agents/:id/register` | API Key | Server-side registration via CDP wallet |
 | `GET` | `/attest/wallet` | Public | Attestation wallet address, network, and balances |
 | `GET` | `/attest/status` | Public | Attestation configuration and health status |
+| `GET` | `/admin/launch-metrics` | API Key (Admin) | Launch funnel and revenue snapshot (30d default) |
 | `GET` | `/agents/:id/wallet` | API Key | CDP wallet address and balances |
 | `GET` | `/agents/:id/health` | API Key | MoltMind health score (STARTER+) |
 | `GET` | `/agents/:id/alerts` | API Key | Cognitive alerts (PRO) |
@@ -240,7 +247,20 @@ See [`backend/.env.example`](./backend/.env.example) for the full list. Key vari
 | `ATTEST_HEALTH_ENABLED` | Optional | Enable periodic MoltMind health checkpoint attestations (default `false`) |
 | `ATTEST_HEALTH_INTERVAL_HOURS` | Optional | Checkpoint interval in hours (default `24`, max `168`) |
 | `ATTEST_HEALTH_MIN_EVENTS` | Optional | Minimum events in interval to attest when no high/critical alerts (default `10`) |
+| `ATTEST_MAX_TX_PER_HOUR` | Optional | Attestation tx safety cap per hour (default `400`) |
+| `ATTEST_MAX_TX_PER_DAY` | Optional | Attestation tx safety cap per day (default `5000`) |
 | `ENCRYPTION_KEY` | Recommended | AES-256 key for audit log encryption |
+
+Desktop runtime installer overrides (optional, for Tauri app runtime installs):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENCLAW_INSTALLER_URL_UNIX` | Optional | Override installer URL on Unix-like systems (default `https://openclaw.ai/install.sh`) |
+| `OPENCLAW_INSTALLER_URL_WINDOWS` | Optional | Override installer URL on Windows (default `https://openclaw.ai/install.ps1`) |
+| `OPENCLAW_INSTALLER_SHA256_UNIX` | Recommended | Expected SHA-256 for Unix installer script |
+| `OPENCLAW_INSTALLER_SHA256_WINDOWS` | Recommended | Expected SHA-256 for Windows installer script |
+| `OPENCLAW_INSTALLER_ALLOW_UNPINNED` | Optional | Allow installer run without checksum pinning (`false` by default) |
+| `OPENCLAW_INSTALLER_SKIP_DOCTOR` | Optional | Skip `openclaw doctor` post-install health check (`false` by default) |
 
 ---
 
@@ -270,14 +290,14 @@ Bastion can anchor policy changes and critical decision receipts on-chain using 
   - Critical `/authorize` decisions (blocked/error/spending/critical action types)
   - Periodic MoltMind health checkpoints (score + alert summary hash)
 
-### Deploy to Avalanche Fuji
+### Deploy to Avalanche Mainnet (Recommended)
 
 ```bash
 cd contracts/attestor
 forge create src/BastionAttestor.sol:BastionAttestor \
-  --rpc-url https://api.avax-test.network/ext/bc/C/rpc \
+  --rpc-url https://api.avax.network/ext/bc/C/rpc \
   --private-key $DEPLOYER_PRIVATE_KEY \
-  --chain-id 43113 \
+  --chain-id 43114 \
   --broadcast
 ```
 
@@ -285,11 +305,13 @@ Then set:
 
 ```bash
 ATTESTATION_CONTRACT_ADDRESS=0x...
-ATTESTATION_NETWORK=avalanche-fuji
+ATTESTATION_NETWORK=avalanche
 ATTESTATION_WALLET_NAME=bastion-attestor
 ATTEST_HEALTH_ENABLED=true
 ATTEST_HEALTH_INTERVAL_HOURS=24
 ATTEST_HEALTH_MIN_EVENTS=10
+ATTEST_MAX_TX_PER_HOUR=400
+ATTEST_MAX_TX_PER_DAY=5000
 ```
 
 Restart the backend after updating env vars.

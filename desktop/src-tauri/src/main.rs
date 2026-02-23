@@ -12,7 +12,10 @@ use modules::moltmind::{
     MoltMindState,
 };
 use modules::billing::{sync_billing, get_active_modules, check_module_access, activate_module, get_billing_summary};
-use modules::policy::{list_policies, get_policy, create_policy, toggle_policy, delete_policy};
+use modules::policy::{
+    list_policies, list_industry_profiles, get_policy, create_policy, toggle_policy, delete_policy, apply_industry_profile,
+    export_industry_profile_bundle, import_industry_profile_bundle, list_industry_profile_changelog,
+};
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -125,9 +128,9 @@ fn main() {
             start_moltmind, stop_moltmind, get_moltmind_status, get_behavior_events,
             get_health_score, get_cognitive_alerts, acknowledge_alert, get_baseline, run_drift_analysis,
             sync_billing, get_active_modules, check_module_access, activate_module, get_billing_summary,
-            list_policies, get_policy, create_policy, toggle_policy, delete_policy
+            list_policies, list_industry_profiles, get_policy, create_policy, toggle_policy, delete_policy, apply_industry_profile,
+            export_industry_profile_bundle, import_industry_profile_bundle, list_industry_profile_changelog
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

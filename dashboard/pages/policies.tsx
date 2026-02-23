@@ -48,11 +48,29 @@ interface Policy {
   config: any;
 }
 
+interface IndustryProfile {
+  id: string;
+  name: string;
+  description: string;
+  version?: string;
+  policyCount: number;
+}
+
+interface IndustryProfilesResponse {
+  profiles: IndustryProfile[];
+  activeProfileId?: string | null;
+  activeProfileVersion?: string | null;
+}
+
 export default function PoliciesV2() {
   const router = useRouter();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [activeTab, setActiveTab] = useState<PolicyType>('DLP');
   const [isSaved, setIsSaved] = useState(false);
+  const [profiles, setProfiles] = useState<IndustryProfile[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState('default');
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+  const [isApplyingProfile, setIsApplyingProfile] = useState(false);
 
   // DLP State
   const [dlpEnabled, setDlpEnabled] = useState(true);
@@ -111,6 +129,21 @@ export default function PoliciesV2() {
         }
       })
       .catch(err => console.error('Failed to load policies:', err));
+
+    api.get<IndustryProfilesResponse>('/industry-profiles')
+      .then(data => {
+        setProfiles(data.profiles);
+        const activeProfileId = data.activeProfileId;
+        setActiveProfileId(activeProfileId || null);
+        if (data.profiles.length > 0 && activeProfileId && data.profiles.some((p) => p.id === activeProfileId)) {
+          setSelectedProfile(activeProfileId);
+        } else if (data.profiles.length > 0) {
+          setSelectedProfile((current) =>
+            data.profiles.some((p) => p.id === current) ? current : data.profiles[0].id
+          );
+        }
+      })
+      .catch(err => console.error('Failed to load industry profiles:', err));
   }, []);
 
   const togglePattern = (patternId: string) => {
@@ -203,6 +236,31 @@ export default function PoliciesV2() {
     return acc;
   }, {} as Record<string, typeof DLP_PATTERN_TYPES>);
 
+  const applyProfile = async () => {
+    if (!selectedProfile) return;
+    setIsApplyingProfile(true);
+
+    try {
+      const result = await api.post<{
+        profile: { id: string; name: string };
+        createdCount: number;
+        updatedCount: number;
+      }>(`/industry-profiles/${selectedProfile}/apply`, { replaceExistingTypes: true });
+      setActiveProfileId(result.profile.id);
+
+      const data = await api.get<{ policies: Policy[] }>('/policies');
+      setPolicies(data.policies);
+
+      alert(
+        `Applied ${result.profile.name}. Created ${result.createdCount} and updated ${result.updatedCount} policies.`
+      );
+    } catch (err: any) {
+      alert('Failed to apply profile: ' + err.message);
+    } finally {
+      setIsApplyingProfile(false);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Head>
@@ -218,6 +276,48 @@ export default function PoliciesV2() {
             Configure real-time security controls for your AI agents
           </p>
         </header>
+
+        <section style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', padding: '1.25rem', borderRadius: '12px', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ fontSize: '1.1rem', margin: 0, marginBottom: '0.35rem' }}>Industry Profiles</h2>
+              <p style={{ color: '#889', margin: 0, fontSize: '0.9rem' }}>
+                Apply a pre-configured policy bundle (interchangeable overlay).
+              </p>
+              {activeProfileId && (
+                <p style={{ color: '#9fb6ff', margin: '0.4rem 0 0', fontSize: '0.82rem' }}>
+                  Active profile: {profiles.find((p) => p.id === activeProfileId)?.name || activeProfileId}
+                </p>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <select
+                value={selectedProfile}
+                onChange={(e) => setSelectedProfile(e.target.value)}
+                style={{ ...inputStyle, minWidth: '240px', padding: '10px 12px' }}
+              >
+                {profiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name} ({profile.policyCount})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={applyProfile}
+                disabled={isApplyingProfile || profiles.length === 0}
+                className="button-primary"
+                style={{ opacity: isApplyingProfile ? 0.7 : 1 }}
+              >
+                {isApplyingProfile ? 'Applying...' : 'Apply Profile'}
+              </button>
+            </div>
+          </div>
+          {selectedProfile && (
+            <p style={{ color: '#aaa', marginTop: '0.75rem', marginBottom: 0, fontSize: '0.85rem' }}>
+              {profiles.find((p) => p.id === selectedProfile)?.description}
+            </p>
+          )}
+        </section>
 
         {/* Policy Type Tabs */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>

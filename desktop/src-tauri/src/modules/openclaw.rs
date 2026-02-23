@@ -3,6 +3,9 @@ use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
 use std::sync::{Arc, Mutex};
 use std::fs;
+use std::path::PathBuf;
+use std::env;
+use sha2::{Digest, Sha256};
 use crate::modules::moltmind::record_event;
 
 #[cfg(unix)]
@@ -116,13 +119,12 @@ pub async fn stop_openclaw<R: Runtime>(app: AppHandle<R>) -> Result<String, Stri
 #[serde(rename_all = "camelCase")]
 pub struct LlmConfig {
     pub provider: String,
-    pub api_key: String,
+    pub api_key: Option<String>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenClawConfig {
-    pub api_key: String,
     pub modules: Vec<String>,
     pub llm: Option<LlmConfig>,
 }
@@ -132,6 +134,154 @@ struct InstallProgress {
     step: String,
     message: String,
     percentage: u8,
+}
+
+#[cfg(not(target_os = "windows"))]
+const DEFAULT_INSTALLER_URL_UNIX: &str = "https://openclaw.ai/install.sh";
+#[cfg(target_os = "windows")]
+const DEFAULT_INSTALLER_URL_WINDOWS: &str = "https://openclaw.ai/install.ps1";
+
+fn parse_bool_env(name: &str) -> bool {
+    match env::var(name) {
+        Ok(v) => matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"),
+        Err(_) => false,
+    }
+}
+
+fn installer_policy() -> (bool, bool) {
+    // Safer default: require checksum pinning unless explicitly disabled.
+    let allow_unpinned = parse_bool_env("OPENCLAW_INSTALLER_ALLOW_UNPINNED");
+    let skip_doctor = parse_bool_env("OPENCLAW_INSTALLER_SKIP_DOCTOR");
+    (allow_unpinned, skip_doctor)
+}
+
+fn to_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0x0f) as usize] as char);
+    }
+    out
+}
+
+async fn download_installer(url: &str) -> Result<Vec<u8>, String> {
+    let client = reqwest::Client::new();
+    let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("Installer download failed: {} ({})", url, resp.status()));
+    }
+    resp.bytes()
+        .await
+        .map(|b| b.to_vec())
+        .map_err(|e| e.to_string())
+}
+
+fn verify_installer_checksum(bytes: &[u8], expected_sha256: Option<String>, allow_unpinned: bool) -> Result<String, String> {
+    let digest = Sha256::digest(bytes);
+    let actual = to_hex(&digest);
+    match expected_sha256 {
+        Some(expected) => {
+            let expected_norm = expected.trim().to_ascii_lowercase();
+            if expected_norm.is_empty() {
+                if allow_unpinned {
+                    Ok(actual)
+                } else {
+                    Err("Checksum pinning required: OPENCLAW_INSTALLER_SHA256_* is empty".to_string())
+                }
+            } else if actual == expected_norm {
+                Ok(actual)
+            } else {
+                Err(format!(
+                    "Installer checksum mismatch. expected={}, actual={}",
+                    expected_norm, actual
+                ))
+            }
+        }
+        None => {
+            if allow_unpinned {
+                Ok(actual)
+            } else {
+                Err("Checksum pinning required: set OPENCLAW_INSTALLER_SHA256_UNIX/OPENCLAW_INSTALLER_SHA256_WINDOWS".to_string())
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+fn create_unix_launcher(path: &PathBuf, npm_prefix: Option<&str>) -> Result<(), String> {
+    let npm_bin = npm_prefix
+        .map(|p| format!("{}/bin/openclaw", p.trim_end_matches('/')))
+        .unwrap_or_default();
+
+    let script = if npm_bin.is_empty() {
+        r#"#!/bin/sh
+if command -v openclaw >/dev/null 2>&1; then
+  exec openclaw "$@"
+fi
+echo "OpenClaw binary not found. Run installer again or fix PATH." >&2
+exit 127
+"#
+        .to_string()
+    } else {
+        format!(
+            r#"#!/bin/sh
+if command -v openclaw >/dev/null 2>&1; then
+  exec openclaw "$@"
+fi
+if [ -x "{npm_bin}" ]; then
+  exec "{npm_bin}" "$@"
+fi
+echo "OpenClaw binary not found. Run installer again or fix PATH." >&2
+exit 127
+"#
+        )
+    };
+
+    fs::write(path, script).map_err(|e| e.to_string())?;
+    let mut perms = fs::metadata(path).map_err(|e| e.to_string())?.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn create_windows_launcher(path: &PathBuf, npm_prefix: Option<&str>) -> Result<(), String> {
+    let npm_cmd = npm_prefix
+        .map(|p| format!(r#"{}\openclaw.cmd"#, p.trim_end_matches(['\\', '/'])))
+        .unwrap_or_default();
+
+    let script = if npm_cmd.is_empty() {
+        r#"@echo off
+where openclaw >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+  openclaw %*
+  exit /b %ERRORLEVEL%
+)
+echo OpenClaw binary not found. Run installer again or fix PATH.
+exit /b 127
+"#
+        .to_string()
+    } else {
+        format!(
+            r#"@echo off
+where openclaw >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+  openclaw %*
+  exit /b %ERRORLEVEL%
+)
+if exist "{npm_cmd}" (
+  "{npm_cmd}" %*
+  exit /b %ERRORLEVEL%
+)
+echo OpenClaw binary not found. Run installer again or fix PATH.
+exit /b 127
+"#
+        )
+    };
+
+    fs::write(path, script).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -148,7 +298,6 @@ pub async fn install_openclaw<R: Runtime>(app: AppHandle<R>) -> Result<String, S
             message: msg.to_string(),
             percentage: pct,
         });
-        std::thread::sleep(std::time::Duration::from_millis(800)); // Simulate work
     };
 
     emit_progress("init", "Initializing installer...", 10);
@@ -156,46 +305,111 @@ pub async fn install_openclaw<R: Runtime>(app: AppHandle<R>) -> Result<String, S
     let is_windows = cfg!(target_os = "windows");
     let binary_name = if is_windows { "openclaw.bat" } else { "openclaw" };
     let bin_path = app_dir.join(binary_name);
-    
-    emit_progress("download", "Downloading OpenClaw Runtime (v0.4.2)...", 30);
-    
-    // Create dummy script
-    let script = if is_windows {
-        r#"@echo off
-echo OpenClaw Runtime Active
-:loop
-echo Heartbeat...
-timeout /t 5 >nul
-goto loop
-"#
-    } else {
-        r#"#!/bin/sh
-echo "OpenClaw Runtime Active"
-while true; do
-  echo "Heartbeat..."
-  sleep 5
-done
-"#
-    };
-    
-    emit_progress("extract", "Verifying package integrity...", 50);
-    fs::write(&bin_path, script).map_err(|e| e.to_string())?;
-    
-    emit_progress("configure", "Configuring local environment...", 70);
+    let (allow_unpinned, skip_doctor) = installer_policy();
 
-    // Make executable (Unix only)
+    #[cfg(target_os = "windows")]
+    let installer_url = env::var("OPENCLAW_INSTALLER_URL_WINDOWS")
+        .unwrap_or_else(|_| DEFAULT_INSTALLER_URL_WINDOWS.to_string());
+    #[cfg(not(target_os = "windows"))]
+    let installer_url = env::var("OPENCLAW_INSTALLER_URL_UNIX")
+        .unwrap_or_else(|_| DEFAULT_INSTALLER_URL_UNIX.to_string());
+
+    #[cfg(target_os = "windows")]
+    let expected_sha = env::var("OPENCLAW_INSTALLER_SHA256_WINDOWS").ok();
+    #[cfg(not(target_os = "windows"))]
+    let expected_sha = env::var("OPENCLAW_INSTALLER_SHA256_UNIX").ok();
+
+    emit_progress("download", "Downloading OpenClaw installer...", 28);
+    let installer_bytes = download_installer(&installer_url).await?;
+
+    emit_progress("verify", "Verifying installer integrity...", 45);
+    let actual_sha = verify_installer_checksum(&installer_bytes, expected_sha, allow_unpinned)?;
+    println!("OpenClaw installer SHA-256 verified: {}", actual_sha);
+
+    let installer_filename = if is_windows { "openclaw-install.ps1" } else { "openclaw-install.sh" };
+    let installer_path = app_dir.join(installer_filename);
+    fs::write(&installer_path, installer_bytes).map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
-        let mut perms = fs::metadata(&bin_path).map_err(|e| e.to_string())?.permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&bin_path, perms).map_err(|e| e.to_string())?;
+        let mut perms = fs::metadata(&installer_path).map_err(|e| e.to_string())?.permissions();
+        perms.set_mode(0o700);
+        fs::set_permissions(&installer_path, perms).map_err(|e| e.to_string())?;
     }
 
-    emit_progress("bootstrap", "Bootstrapping agent network...", 90);
-    
-    // Simulate network delay
-    std::thread::sleep(std::time::Duration::from_secs(1));
-    
+    emit_progress("install", "Running OpenClaw installer...", 62);
+    let installer_path_str = installer_path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "windows")]
+    let installer_output = app
+        .shell()
+        .command("powershell")
+        .args(&[
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            &installer_path_str,
+        ])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    #[cfg(not(target_os = "windows"))]
+    let installer_output = app
+        .shell()
+        .command("sh")
+        .args(&[
+            &installer_path_str,
+            "--no-onboard",
+        ])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if installer_output.status.code().unwrap_or(1) != 0 {
+        let stderr = String::from_utf8_lossy(&installer_output.stderr);
+        let stdout = String::from_utf8_lossy(&installer_output.stdout);
+        return Err(format!(
+            "OpenClaw installer failed.\nstdout:\n{}\nstderr:\n{}",
+            stdout, stderr
+        ));
+    }
+
+    emit_progress("resolve", "Resolving OpenClaw binary path...", 74);
+    let npm_prefix_output = app
+        .shell()
+        .command("npm")
+        .args(&["prefix", "-g"])
+        .output()
+        .await
+        .ok();
+
+    let npm_prefix = npm_prefix_output
+        .as_ref()
+        .and_then(|out| {
+            if out.status.code().unwrap_or(1) == 0 {
+                Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+            } else {
+                None
+            }
+        });
+
+    emit_progress("configure", "Creating local launcher wrapper...", 84);
+    #[cfg(unix)]
+    create_unix_launcher(&bin_path, npm_prefix.as_deref())?;
+    #[cfg(target_os = "windows")]
+    create_windows_launcher(&bin_path, npm_prefix.as_deref())?;
+
+    if !skip_doctor {
+        emit_progress("doctor", "Running post-install health check...", 94);
+        let _ = app
+            .shell()
+            .command(&bin_path)
+            .args(&["doctor", "--non-interactive"])
+            .output()
+            .await;
+    }
+
     emit_progress("done", "Installation complete.", 100);
 
     Ok(bin_path.to_string_lossy().to_string())
@@ -206,14 +420,19 @@ pub async fn save_config<R: Runtime>(app: AppHandle<R>, config: OpenClawConfig) 
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let config_path = app_dir.join("config.yaml");
     
+    // Never persist secrets in plaintext config.
     let mut content = format!(
-        "api_key: {}\nmodules:\n{}", 
-        config.api_key,
+        "modules:\n{}", 
         config.modules.iter().map(|m| format!("  - {}", m)).collect::<Vec<_>>().join("\n")
     );
 
     if let Some(llm) = config.llm {
-        content.push_str(&format!("\nllm:\n  provider: {}\n  api_key: {}", llm.provider, llm.api_key));
+        let has_inline_key = llm.api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
+        content.push_str(&format!(
+            "\nllm:\n  provider: {}\n  api_key_source: {}",
+            llm.provider,
+            if has_inline_key { "runtime_only" } else { "not_provided" }
+        ));
     }
     
     std::fs::write(config_path, content).map_err(|e| e.to_string())?;

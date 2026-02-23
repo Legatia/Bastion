@@ -15,6 +15,20 @@ interface Policy {
     config: any;
 }
 
+interface IndustryProfile {
+    id: string;
+    name: string;
+    description: string;
+    version?: string;
+    policyCount: number;
+}
+
+interface IndustryProfilesResponse {
+    profiles: IndustryProfile[];
+    activeProfileId?: string | null;
+    activeProfileVersion?: string | null;
+}
+
 const POLICY_ICONS: Record<PolicyType, any> = {
     RATE_LIMIT: Clock,
     ALLOWLIST: Shield,
@@ -36,6 +50,11 @@ export default function PoliciesPage() {
     const [saving, setSaving] = useState(false);
     const [activeType, setActiveType] = useState<PolicyType>('RATE_LIMIT');
     const [showCreate, setShowCreate] = useState(false);
+    const [industryProfiles, setIndustryProfiles] = useState<IndustryProfile[]>([]);
+    const [selectedProfileId, setSelectedProfileId] = useState<string>('default');
+    const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+    const [activeProfileVersion, setActiveProfileVersion] = useState<string | null>(null);
+    const [applyingProfile, setApplyingProfile] = useState(false);
 
     // Form state
     const [formName, setFormName] = useState('');
@@ -49,6 +68,7 @@ export default function PoliciesPage() {
         const key = localStorage.getItem('bastion_api_key');
         if (!key) { navigate('/login'); return; }
         fetchPolicies();
+        fetchIndustryProfiles();
     }, []);
 
     const fetchPolicies = async () => {
@@ -59,6 +79,45 @@ export default function PoliciesPage() {
             console.error('Failed to fetch policies', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchIndustryProfiles = async () => {
+        try {
+            const data = await api.get<IndustryProfilesResponse>('/industry-profiles');
+            setIndustryProfiles(data.profiles || []);
+            if (data.activeProfileId) {
+                setActiveProfileId(data.activeProfileId);
+                setActiveProfileVersion(data.activeProfileVersion || null);
+                setSelectedProfileId(data.activeProfileId);
+            } else if ((data.profiles || []).length > 0) {
+                setSelectedProfileId((current) =>
+                    (data.profiles || []).some((p) => p.id === current) ? current : data.profiles[0].id
+                );
+            }
+        } catch (err) {
+            console.error('Failed to fetch industry profiles', err);
+        }
+    };
+
+    const applyIndustryProfile = async () => {
+        if (!selectedProfileId) return;
+        setApplyingProfile(true);
+        try {
+            const result = await api.post<{
+                profile: { id: string; name: string; version?: string };
+                createdCount: number;
+                updatedCount: number;
+            }>(`/industry-profiles/${selectedProfileId}/apply`, { replaceExistingTypes: true });
+
+            setActiveProfileId(result.profile.id);
+            setActiveProfileVersion(result.profile.version || null);
+            await fetchPolicies();
+            await fetchIndustryProfiles();
+        } catch (err: any) {
+            alert('Failed to apply industry profile: ' + err.message);
+        } finally {
+            setApplyingProfile(false);
         }
     };
 
@@ -139,6 +198,46 @@ export default function PoliciesPage() {
                     >
                         <Plus size={16} /> New Policy
                     </button>
+                </div>
+
+                <div className="mb-8 p-5 bg-zinc-900/50 border border-zinc-800 rounded-xl">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <div>
+                            <h2 className="text-base font-semibold text-white">Industry Profile Overlay</h2>
+                            <p className="text-sm text-zinc-500">Apply interchangeable, industry-specific guardrail bundles.</p>
+                        </div>
+                        {activeProfileId && (
+                            <span className="px-2.5 py-1 rounded-full text-xs bg-blue-500/10 text-blue-300 border border-blue-500/30">
+                                Active: {industryProfiles.find((p) => p.id === activeProfileId)?.name || activeProfileId}
+                                {activeProfileVersion ? ` v${activeProfileVersion}` : ''}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <select
+                            value={selectedProfileId}
+                            onChange={(e) => setSelectedProfileId(e.target.value)}
+                            className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                        >
+                            {industryProfiles.map((profile) => (
+                                <option key={profile.id} value={profile.id}>
+                                    {profile.name}{profile.version ? ` (v${profile.version})` : ''}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={applyIndustryProfile}
+                            disabled={!selectedProfileId || applyingProfile}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg font-medium transition-colors cursor-pointer"
+                        >
+                            {applyingProfile ? 'Applying...' : 'Apply Profile'}
+                        </button>
+                    </div>
+                    {selectedProfileId && (
+                        <p className="text-xs text-zinc-500 mt-2">
+                            {industryProfiles.find((p) => p.id === selectedProfileId)?.description || ''}
+                        </p>
+                    )}
                 </div>
 
                 {/* Create Form */}

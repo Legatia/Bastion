@@ -37,6 +37,8 @@ const envConfig: EnvConfig = {
         'ATTEST_HEALTH_ENABLED',
         'ATTEST_HEALTH_INTERVAL_HOURS',
         'ATTEST_HEALTH_MIN_EVENTS',
+        'ATTEST_MAX_TX_PER_HOUR',
+        'ATTEST_MAX_TX_PER_DAY',
     ],
 };
 

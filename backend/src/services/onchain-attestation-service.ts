@@ -56,6 +56,89 @@ function envBool(name: string, defaultValue: boolean): boolean {
   return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
 }
 
+const CDP_SUPPORTED_EVM_NETWORKS = new Set([
+  'base',
+  'base-sepolia',
+  'ethereum',
+  'ethereum-sepolia',
+  'avalanche',
+  'polygon',
+  'optimism',
+  'arbitrum',
+]);
+
+type AttestCounterState = {
+  hourKey: string;
+  hourCount: number;
+  dayKey: string;
+  dayCount: number;
+};
+
+const attestCounter: AttestCounterState = {
+  hourKey: '',
+  hourCount: 0,
+  dayKey: '',
+  dayCount: 0,
+};
+
+function getMaxTxPerHour(): number {
+  const parsed = Number.parseInt(process.env.ATTEST_MAX_TX_PER_HOUR || '400', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return 400;
+  return parsed;
+}
+
+function getMaxTxPerDay(): number {
+  const parsed = Number.parseInt(process.env.ATTEST_MAX_TX_PER_DAY || '5000', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return 5000;
+  return parsed;
+}
+
+function checkAndIncrementAttestBudget(): boolean {
+  const now = new Date();
+  const hourKey = now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+  const dayKey = now.toISOString().slice(0, 10); // YYYY-MM-DD
+
+  if (attestCounter.hourKey !== hourKey) {
+    attestCounter.hourKey = hourKey;
+    attestCounter.hourCount = 0;
+  }
+  if (attestCounter.dayKey !== dayKey) {
+    attestCounter.dayKey = dayKey;
+    attestCounter.dayCount = 0;
+  }
+
+  const hourLimit = getMaxTxPerHour();
+  const dayLimit = getMaxTxPerDay();
+  if (attestCounter.hourCount >= hourLimit || attestCounter.dayCount >= dayLimit) {
+    return false;
+  }
+
+  attestCounter.hourCount += 1;
+  attestCounter.dayCount += 1;
+  return true;
+}
+
+function shouldSendAttestation(): { ok: boolean; network?: string; reason?: string } {
+  const network = getAttestationNetwork();
+  if (!CDP_SUPPORTED_EVM_NETWORKS.has(network)) {
+    return {
+      ok: false,
+      network,
+      reason: `ATTESTATION_NETWORK "${network}" is not supported by CDP sendTransaction`,
+    };
+  }
+
+  if (!checkAndIncrementAttestBudget()) {
+    return {
+      ok: false,
+      network,
+      reason: 'Attestation tx cap reached (ATTEST_MAX_TX_PER_HOUR / ATTEST_MAX_TX_PER_DAY)',
+    };
+  }
+
+  return { ok: true, network };
+}
+
 function shouldAnchorDecision(input: {
   decision: 'ALLOWED' | 'BLOCKED' | 'ERROR';
   actionType: string;
@@ -100,6 +183,14 @@ export class OnchainAttestationService {
   }): Promise<string | null> {
     const contractAddress = getContractAddress();
     if (!contractAddress) return null;
+    const sendCheck = shouldSendAttestation();
+    if (!sendCheck.ok) {
+      logger.warn('[ATTEST] Policy attestation skipped', {
+        policyId: input.policyId,
+        reason: sendCheck.reason,
+      });
+      return null;
+    }
 
     const digest = hashObject({
       scope: 'policy',
@@ -118,7 +209,7 @@ export class OnchainAttestationService {
       to: contractAddress,
       data,
       value: 0n,
-      network: getAttestationNetwork(),
+      network: sendCheck.network as string,
     });
 
     logger.info('[ATTEST] Policy attestation submitted', {
@@ -142,6 +233,14 @@ export class OnchainAttestationService {
     const contractAddress = getContractAddress();
     if (!contractAddress) return null;
     if (!shouldAnchorDecision(input)) return null;
+    const sendCheck = shouldSendAttestation();
+    if (!sendCheck.ok) {
+      logger.warn('[ATTEST] Decision attestation skipped', {
+        logId: input.logId,
+        reason: sendCheck.reason,
+      });
+      return null;
+    }
 
     const digest = hashObject({
       scope: 'decision',
@@ -167,7 +266,7 @@ export class OnchainAttestationService {
       to: contractAddress,
       data,
       value: 0n,
-      network: getAttestationNetwork(),
+      network: sendCheck.network as string,
     });
 
     logger.info('[ATTEST] Decision receipt submitted', {
@@ -196,6 +295,14 @@ export class OnchainAttestationService {
     const contractAddress = getContractAddress();
     if (!contractAddress) return null;
     if (!this.isHealthCheckpointEnabled()) return null;
+    const sendCheck = shouldSendAttestation();
+    if (!sendCheck.ok) {
+      logger.warn('[ATTEST] Health checkpoint skipped', {
+        agentId: input.agentId,
+        reason: sendCheck.reason,
+      });
+      return null;
+    }
 
     const digest = hashObject({
       scope: 'health_checkpoint',
@@ -218,7 +325,7 @@ export class OnchainAttestationService {
       to: contractAddress,
       data,
       value: 0n,
-      network: getAttestationNetwork(),
+      network: sendCheck.network as string,
     });
 
     logger.info('[ATTEST] Health checkpoint submitted', {

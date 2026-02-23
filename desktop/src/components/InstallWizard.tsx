@@ -59,10 +59,29 @@ interface LogEntry {
     timestamp: string;
 }
 
+interface IndustryProfile {
+    id: string;
+    name: string;
+    description: string;
+    policyCount: number;
+}
+
+interface IndustryProfilesResponse {
+    profiles: IndustryProfile[];
+    activeProfileId?: string | null;
+}
+
+const FALLBACK_PROFILES: IndustryProfile[] = [
+    { id: 'default', name: 'Default Security Bundle', description: 'Balanced baseline guardrails for general autonomous agents.', policyCount: 0 },
+    { id: 'accounting', name: 'Accounting Safe Mode', description: 'Strict controls for bookkeeping and finance-adjacent automation.', policyCount: 0 },
+];
+
 export default function InstallWizard({ onComplete }: { onComplete: () => void }) {
     const [step, setStep] = useState<'select' | 'auth' | 'config' | 'install'>('select');
     const [selectedModules, setSelectedModules] = useState<string[]>(['openclaw']);
     const [apiKey, setApiKey] = useState('');
+    const [industryProfiles, setIndustryProfiles] = useState<IndustryProfile[]>(FALLBACK_PROFILES);
+    const [industryProfile, setIndustryProfile] = useState<string>('default');
 
     // LLM Config State
     const [llmMode, setLlmMode] = useState<'cloud' | 'custom'>('cloud');
@@ -103,6 +122,36 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
     }, [step]);
 
     useEffect(() => {
+        if (step !== 'config') return;
+
+        const loadProfiles = async () => {
+            try {
+                const result = await invoke<IndustryProfilesResponse>('list_industry_profiles');
+                if (result.profiles?.length) {
+                    setIndustryProfiles(result.profiles);
+                    setIndustryProfile((current) => {
+                        if (result.activeProfileId && result.profiles.some((p) => p.id === result.activeProfileId)) {
+                            return result.activeProfileId;
+                        }
+                        if (result.profiles.some((p) => p.id === current)) {
+                            return current;
+                        }
+                        return result.profiles[0].id;
+                    });
+                }
+            } catch (error) {
+                console.warn('Failed to load industry profiles, using fallback:', error);
+                setIndustryProfiles(FALLBACK_PROFILES);
+                setIndustryProfile((current) =>
+                    FALLBACK_PROFILES.some((p) => p.id === current) ? current : FALLBACK_PROFILES[0].id
+                );
+            }
+        };
+
+        loadProfiles();
+    }, [step]);
+
+    useEffect(() => {
         if (step === 'install') {
             const setupInstall = async () => {
                 setInstalling(true);
@@ -121,16 +170,35 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
 
                 try {
                     const llmConfig = llmMode === 'cloud'
-                        ? { provider: 'zai', api_key: 'default_zai_key' } // In prod this would be handled securely
-                        : { provider: customProvider, api_key: customKey };
+                        ? { provider: 'zai', api_key: undefined } // key supplied at runtime, never persisted
+                        : { provider: customProvider, api_key: customKey || undefined };
 
                     await invoke('save_config', {
                         config: {
-                            apiKey,
                             modules: selectedModules,
                             llm: llmConfig
                         }
                     });
+
+                    setProgressLogs(prev => [...prev, {
+                        step: 'profile',
+                        message: `Applying "${industryProfile}" security profile...`,
+                        timestamp: new Date().toLocaleTimeString()
+                    }]);
+
+                    try {
+                        await invoke('apply_industry_profile', {
+                            profileId: industryProfile,
+                            replaceExistingTypes: true
+                        });
+                    } catch (profileError) {
+                        console.warn('Profile apply skipped/failed:', profileError);
+                        setProgressLogs(prev => [...prev, {
+                            step: 'warning',
+                            message: `Profile apply warning: ${profileError}`,
+                            timestamp: new Date().toLocaleTimeString()
+                        }]);
+                    }
 
                     await invoke('install_openclaw');
                 } catch (error) {
@@ -314,7 +382,25 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
                         >
                             <div>
                                 <h3 className="text-lg font-medium text-white mb-2">Agent Configuration</h3>
-                                <p className="text-zinc-400">Configure the LLM provider for your agent.</p>
+                                <p className="text-zinc-400">Configure the LLM provider and security profile for your agent.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-zinc-300 mb-1.5">Security Profile</label>
+                                <select
+                                    value={industryProfile}
+                                    onChange={(e) => setIndustryProfile(e.target.value)}
+                                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                                >
+                                    {industryProfiles.map((profile) => (
+                                        <option key={profile.id} value={profile.id}>
+                                            {profile.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-zinc-500 mt-1.5">
+                                    {industryProfiles.find((p) => p.id === industryProfile)?.description || 'Profiles are interchangeable overlays. You can switch later in Policies.'}
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">

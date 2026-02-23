@@ -11,20 +11,39 @@ interface IdentityStatus {
     reputation?: number;
 }
 
+interface IndustryProfile {
+    id: string;
+    name: string;
+    description: string;
+    policyCount: number;
+}
+
+interface IndustryProfilesResponse {
+    profiles: IndustryProfile[];
+    activeProfileId?: string | null;
+}
+
 export default function Dashboard() {
     const navigate = useNavigate();
     const [proxyRunning, setProxyRunning] = useState(false);
     const [identity, setIdentity] = useState<IdentityStatus | null>(null);
     const [loadingIdentity, setLoadingIdentity] = useState(false);
     const [logs, setLogs] = useState<string[]>([]);
+    const [activeProfileName, setActiveProfileName] = useState<string>('Default Security Bundle');
 
     useEffect(() => {
         const key = localStorage.getItem('bastion_api_key');
         if (!key) { navigate('/login'); return; }
 
         checkStatus();
+        loadActiveProfile();
         const interval = setInterval(checkStatus, 2000);
-        return () => clearInterval(interval);
+        const profileInterval = setInterval(loadActiveProfile, 30000);
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(profileInterval);
+        };
     }, []);
 
     const checkStatus = async () => {
@@ -47,6 +66,23 @@ export default function Dashboard() {
             setLogs(events.reverse());
         } catch (e) {
             console.error("Log fetch failed", e);
+        }
+    };
+
+    const loadActiveProfile = async () => {
+        try {
+            const data = await invoke<IndustryProfilesResponse>('list_industry_profiles');
+            if (!data?.profiles?.length) return;
+
+            const activeId = data.activeProfileId;
+            if (!activeId) return;
+
+            const active = data.profiles.find((p) => p.id === activeId);
+            if (active?.name) {
+                setActiveProfileName(active.name);
+            }
+        } catch (e) {
+            // Keep dashboard resilient if profile endpoint is unavailable
         }
     };
 
@@ -80,8 +116,20 @@ export default function Dashboard() {
         <div className="min-h-screen bg-zinc-950 text-white">
             <Navbar />
             <div className="p-8 max-w-6xl mx-auto">
-                <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-                <p className="text-zinc-500 mb-8">Local agent runtime overview.</p>
+                <div className="flex items-start justify-between gap-4 mb-8">
+                    <div>
+                        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+                        <p className="text-zinc-500">Local agent runtime overview.</p>
+                    </div>
+                    <button
+                        onClick={() => navigate('/policies')}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs bg-blue-500/10 text-blue-300 border border-blue-500/30 hover:bg-blue-500/15 transition-colors cursor-pointer"
+                        title="Open Policies"
+                    >
+                        <Shield size={12} />
+                        Active profile: {activeProfileName}
+                    </button>
+                </div>
 
                 {/* Status Cards */}
                 <div className="grid grid-cols-3 gap-4 mb-8">

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { logger } from '../middleware/logger';
+import { isAdminEmail } from '../utils/admin';
 
 const router = Router();
 
@@ -17,20 +18,6 @@ function generateSecureApiKey(): string {
     const randomBytes = crypto.randomBytes(24); // 192 bits of entropy
     const b64 = randomBytes.toString('base64url'); // URL-safe base64
     return `bst_live_${b64}`;
-}
-
-function resolveAdminEmails(): Set<string> {
-    const raw = process.env.ADMIN_EMAILS || '';
-    return new Set(
-        raw
-            .split(',')
-            .map((email) => email.trim().toLowerCase())
-            .filter(Boolean)
-    );
-}
-
-function isAdminEmail(email: string): boolean {
-    return resolveAdminEmails().has(email.trim().toLowerCase());
 }
 
 const loginSchema = z.object({

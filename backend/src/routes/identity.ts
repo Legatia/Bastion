@@ -450,6 +450,8 @@ router.get('/attest/status', async (_req: Request, res: Response) => {
         );
         const healthCheckpointIntervalHours = Number.parseInt(process.env.ATTEST_HEALTH_INTERVAL_HOURS || '24', 10);
         const healthCheckpointMinEvents = Number.parseInt(process.env.ATTEST_HEALTH_MIN_EVENTS || '10', 10);
+        const maxTxPerHour = Number.parseInt(process.env.ATTEST_MAX_TX_PER_HOUR || '400', 10);
+        const maxTxPerDay = Number.parseInt(process.env.ATTEST_MAX_TX_PER_DAY || '5000', 10);
 
         const wallet = await CdpWalletService.getAttestationWallet();
 
@@ -502,6 +504,10 @@ router.get('/attest/status', async (_req: Request, res: Response) => {
                 enabled: healthCheckpointEnabled,
                 intervalHours: Number.isFinite(healthCheckpointIntervalHours) ? healthCheckpointIntervalHours : 24,
                 minEvents: Number.isFinite(healthCheckpointMinEvents) ? healthCheckpointMinEvents : 10,
+            },
+            limits: {
+                maxTxPerHour: Number.isFinite(maxTxPerHour) ? maxTxPerHour : 400,
+                maxTxPerDay: Number.isFinite(maxTxPerDay) ? maxTxPerDay : 5000,
             },
             lastErrorHint,
         });

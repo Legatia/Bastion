@@ -30,5 +30,5 @@ tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 tauri-plugin-updater = "2"
 tauri-plugin-deep-link = "2.4.7"
-
+sha2 = "0.10"
 
