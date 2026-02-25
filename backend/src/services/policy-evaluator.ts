@@ -4,6 +4,8 @@
 import { prisma } from '../lib/prisma';
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
 import {
   Action,
   Policy,
@@ -500,29 +502,22 @@ export class PolicyEvaluator {
       return { allowed: true };
     }
 
-    // SSRF protection: validate the webhook URL and DNS targets
-    if (!(await this.isSafeWebhookUrl(webhook_url))) {
+    // SSRF protection: validate and pin a safe destination IP before request execution.
+    const pinnedTarget = await this.resolveSafeWebhookTarget(webhook_url);
+    if (!pinnedTarget) {
       logger.warn(`[SECURITY] Blocked SSRF attempt to: ${webhook_url}`);
       return { allowed: false, reason: 'Webhook URL blocked by security policy', policyId: policy.id };
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), webhook_timeout_ms);
-
     try {
-      const response = await fetch(webhook_url, {
-        method: webhook_method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-        signal: controller.signal,
-        redirect: 'error',
-      });
+      const method = webhook_method.toUpperCase();
+      const response = await this.executePinnedWebhookRequest(pinnedTarget, method, { action }, webhook_timeout_ms);
 
       if (!response.ok) {
         throw new Error(`Webhook returned ${response.status}`);
       }
 
-      const result = (await response.json()) as {
+      const result = (response.bodyJson || {}) as {
         allowed?: boolean;
         reason?: string;
       };
@@ -535,8 +530,6 @@ export class PolicyEvaluator {
     } catch (error) {
       logger.error('Webhook evaluation failed:', error);
       throw error;
-    } finally {
-      clearTimeout(timeout);
     }
   }
 
@@ -544,13 +537,17 @@ export class PolicyEvaluator {
    * Validate that a webhook URL is safe (not targeting internal services).
    * Blocks private IPs, localhost, link-local, and cloud metadata endpoints.
    */
-  private async isSafeWebhookUrl(urlStr: string): Promise<boolean> {
+  private async resolveSafeWebhookTarget(urlStr: string): Promise<{
+    url: URL;
+    address: string;
+    family: number;
+  } | null> {
     try {
       const url = new URL(urlStr);
 
       // Enforce HTTPS in production. Allow HTTP only in local development.
       if (url.protocol !== 'https:' && !(process.env.NODE_ENV === 'development' && url.protocol === 'http:')) {
-        return false;
+        return null;
       }
 
       const hostname = url.hostname.toLowerCase();
@@ -558,7 +555,7 @@ export class PolicyEvaluator {
 
       // Restrict unexpected ports to reduce SSRF surface.
       if (port && !['80', '443'].includes(port)) {
-        return false;
+        return null;
       }
 
       // Block localhost variants
@@ -569,28 +566,83 @@ export class PolicyEvaluator {
         hostname === '127.0.0.1' ||
         hostname.endsWith('.local')
       ) {
-        return false;
+        return null;
       }
 
       // Direct IP literal host
       if (net.isIP(hostname)) {
-        return !this.isPrivateOrReservedIp(hostname);
+        if (this.isPrivateOrReservedIp(hostname)) return null;
+        return { url, address: hostname, family: net.isIP(hostname) };
       }
 
       // Resolve DNS and reject hosts mapping to private/reserved ranges.
       const resolved = await dns.lookup(hostname, { all: true, verbatim: true });
-      if (!resolved.length) return false;
+      if (!resolved.length) return null;
 
       for (const entry of resolved) {
-        if (this.isPrivateOrReservedIp(entry.address)) {
-          return false;
-        }
+        if (this.isPrivateOrReservedIp(entry.address)) return null;
       }
 
-      return true;
+      const preferred = resolved.find((e) => e.family === 4) || resolved[0];
+      if (!preferred) return null;
+      return { url, address: preferred.address, family: preferred.family };
     } catch {
-      return false;
+      return null;
     }
+  }
+
+  private async executePinnedWebhookRequest(
+    target: { url: URL; address: string; family: number },
+    method: string,
+    payload: unknown,
+    timeoutMs: number
+  ): Promise<{ ok: boolean; status: number; bodyText: string; bodyJson?: unknown }> {
+    const isHttps = target.url.protocol === 'https:';
+    const transport = isHttps ? https : http;
+    const body = method === 'GET' ? undefined : JSON.stringify(payload);
+    const port = target.url.port
+      ? Number.parseInt(target.url.port, 10)
+      : (isHttps ? 443 : 80);
+
+    return new Promise((resolve, reject) => {
+      const req = transport.request({
+        host: target.address,
+        family: target.family,
+        port,
+        method,
+        path: `${target.url.pathname}${target.url.search}`,
+        headers: {
+          'Content-Type': 'application/json',
+          Host: target.url.host,
+          ...(body ? { 'Content-Length': Buffer.byteLength(body).toString() } : {}),
+        },
+        timeout: timeoutMs,
+        ...(isHttps && !net.isIP(target.url.hostname) ? { servername: target.url.hostname } : {}),
+      }, (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+        res.on('end', () => {
+          const bodyText = Buffer.concat(chunks).toString('utf8');
+          let bodyJson: unknown;
+          try {
+            bodyJson = bodyText ? JSON.parse(bodyText) : undefined;
+          } catch {
+            bodyJson = undefined;
+          }
+          resolve({
+            ok: (res.statusCode || 500) >= 200 && (res.statusCode || 500) < 300,
+            status: res.statusCode || 500,
+            bodyText,
+            bodyJson,
+          });
+        });
+      });
+
+      req.on('timeout', () => req.destroy(new Error('Webhook request timed out')));
+      req.on('error', reject);
+      if (body) req.write(body);
+      req.end();
+    });
   }
 
   private isPrivateOrReservedIp(ip: string): boolean {

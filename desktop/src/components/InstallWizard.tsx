@@ -77,6 +77,7 @@ const FALLBACK_PROFILES: IndustryProfile[] = [
 ];
 
 export default function InstallWizard({ onComplete }: { onComplete: () => void }) {
+    const [runtimeEngine, setRuntimeEngine] = useState<'openclaw' | 'nanoclaw'>('openclaw');
     const [step, setStep] = useState<'select' | 'auth' | 'config' | 'install'>('select');
     const [selectedModules, setSelectedModules] = useState<string[]>(['openclaw']);
     const [apiKey, setApiKey] = useState('');
@@ -93,6 +94,19 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
     const [progressLogs, setProgressLogs] = useState<LogEntry[]>([]);
     const [progressPct, setProgressPct] = useState(0);
     const logsEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const loadRuntimeEngine = async () => {
+            try {
+                const engine = await invoke<'openclaw' | 'nanoclaw'>('get_runtime_engine');
+                setRuntimeEngine(engine === 'nanoclaw' ? 'nanoclaw' : 'openclaw');
+            } catch {
+                setRuntimeEngine('openclaw');
+            }
+        };
+
+        loadRuntimeEngine();
+    }, []);
 
     useEffect(() => {
         if (logsEndRef.current) {
@@ -231,6 +245,7 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
     const oneTimeTotal = MODULES
         .filter(m => selectedModules.includes(m.id) && m.billing === 'one-time')
         .reduce((sum, m) => sum + m.price, 0);
+    const runtimeLabel = runtimeEngine === 'nanoclaw' ? 'NanoClaw' : 'OpenClaw';
 
     return (
         <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl">
@@ -501,7 +516,7 @@ export default function InstallWizard({ onComplete }: { onComplete: () => void }
                         >
                             <div>
                                 <h3 className="text-lg font-medium text-white mb-2">Setting Up Agent Runtime</h3>
-                                <p className="text-zinc-400">Configuring runtime environment and downloading dependencies.</p>
+                                <p className="text-zinc-400">Configuring {runtimeLabel} runtime environment and downloading dependencies.</p>
                             </div>
 
                             {/* Terminal UI */}

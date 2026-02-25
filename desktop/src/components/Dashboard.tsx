@@ -25,6 +25,7 @@ interface IndustryProfilesResponse {
 
 export default function Dashboard() {
     const navigate = useNavigate();
+    const [runtimeEngine, setRuntimeEngine] = useState<'openclaw' | 'nanoclaw'>('openclaw');
     const [runtimeRunning, setRuntimeRunning] = useState(false);
     const [runtimeBusy, setRuntimeBusy] = useState(false);
     const [proxyRunning, setProxyRunning] = useState(false);
@@ -37,6 +38,7 @@ export default function Dashboard() {
         const key = localStorage.getItem('bastion_api_key');
         if (!key) { navigate('/login'); return; }
 
+        loadRuntimeEngine();
         checkStatus();
         loadActiveProfile();
         const interval = setInterval(checkStatus, 2000);
@@ -47,6 +49,15 @@ export default function Dashboard() {
             clearInterval(profileInterval);
         };
     }, []);
+
+    const loadRuntimeEngine = async () => {
+        try {
+            const engine = await invoke<'openclaw' | 'nanoclaw'>('get_runtime_engine');
+            setRuntimeEngine(engine === 'nanoclaw' ? 'nanoclaw' : 'openclaw');
+        } catch {
+            setRuntimeEngine('openclaw');
+        }
+    };
 
     const checkStatus = async () => {
         try {
@@ -96,6 +107,7 @@ export default function Dashboard() {
             setRuntimeBusy(false);
         }
     };
+    const runtimeLabel = runtimeEngine === 'nanoclaw' ? 'NanoClaw' : 'OpenClaw';
 
     const loadActiveProfile = async () => {
         try {
@@ -185,7 +197,7 @@ export default function Dashboard() {
                             </button>
                         </div>
                         <p className="text-sm text-zinc-500">
-                            {runtimeRunning ? "OpenClaw process active" : "OpenClaw process not running"}
+                            {runtimeRunning ? `${runtimeLabel} process active` : `${runtimeLabel} process not running`}
                         </p>
                     </div>
 

@@ -20,6 +20,47 @@ function generateSecureApiKey(): string {
     return `bst_live_${b64}`;
 }
 
+function deriveApiKeyCryptoKey(): Buffer {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        throw new Error('JWT_SECRET is required to secure API keys');
+    }
+    return crypto.createHash('sha256').update(`${secret}:api-key:v2`).digest();
+}
+
+function apiKeyHash(rawKey: string): string {
+    const key = deriveApiKeyCryptoKey();
+    return crypto.createHmac('sha256', key).update(rawKey).digest('hex');
+}
+
+function serializeApiKey(rawKey: string): string {
+    const key = deriveApiKeyCryptoKey();
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const ciphertext = Buffer.concat([cipher.update(rawKey, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    const hash = apiKeyHash(rawKey);
+    return `bstv2.${hash}.${iv.toString('base64url')}.${ciphertext.toString('base64url')}.${tag.toString('base64url')}`;
+}
+
+function deserializeApiKey(stored: string): string | null {
+    if (!stored.startsWith('bstv2.')) return null;
+    const parts = stored.split('.');
+    if (parts.length !== 5) return null;
+
+    try {
+        const key = deriveApiKeyCryptoKey();
+        const iv = Buffer.from(parts[2], 'base64url');
+        const ciphertext = Buffer.from(parts[3], 'base64url');
+        const tag = Buffer.from(parts[4], 'base64url');
+        const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+        decipher.setAuthTag(tag);
+        return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+    } catch {
+        return null;
+    }
+}
+
 const loginSchema = z.object({
     email: z.string().email(),
     password: z.string(),
@@ -51,6 +92,8 @@ router.post('/auth/login', async (req: Request, res: Response) => {
         }
 
         // Return the API Key to be used as the session token
+        const returnedApiKey = deserializeApiKey(user.apiKey) || user.apiKey;
+
         res.json({
             user: {
                 id: user.id,
@@ -59,7 +102,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
                 tier: user.tier,
                 isAdmin: isAdminEmail(user.email),
             },
-            apiKey: user.apiKey,
+            apiKey: returnedApiKey,
         });
 
     } catch (error: any) {
@@ -110,12 +153,13 @@ router.post('/auth/register', async (req: Request, res: Response) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        const rawApiKey = generateSecureApiKey();
         const user = await prisma.user.create({
             data: {
                 email,
                 password: hashedPassword,
                 name: email.split('@')[0],
-                apiKey: generateSecureApiKey(),
+                apiKey: serializeApiKey(rawApiKey),
                 tier: SubscriptionTier.FREE,
                 referredByCode: referral_code || null,
                 referralCode: `ref_${crypto.randomBytes(6).toString('base64url')}`,
@@ -144,7 +188,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
                 tier: user.tier,
                 isAdmin: isAdminEmail(user.email),
             },
-            apiKey: user.apiKey,
+            apiKey: rawApiKey,
             referred_by: referral_code ? true : false
         });
 
@@ -195,19 +239,30 @@ router.post('/auth/google', async (req: Request, res: Response) => {
         });
 
         if (!user) {
+            const rawApiKey = generateSecureApiKey();
             // Create new user with Google OAuth
             user = await prisma.user.create({
                 data: {
                     email: googleUser.email,
                     password: '', // No password for OAuth users
                     name: googleUser.name || googleUser.email.split('@')[0],
-                    apiKey: generateSecureApiKey(),
+                    apiKey: serializeApiKey(rawApiKey),
                     tier: SubscriptionTier.FREE,
                     googleId: googleUser.id,
                     referralCode: `ref_${crypto.randomBytes(6).toString('base64url')}`,
                 },
             });
             logger.info('New user created via Google OAuth', { email: googleUser.email });
+            return res.json({
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    tier: user.tier,
+                    isAdmin: isAdminEmail(user.email),
+                },
+                apiKey: rawApiKey,
+            });
         } else if (!user.googleId) {
             // Link Google account to existing user
             user = await prisma.user.update({
@@ -215,6 +270,8 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                 data: { googleId: googleUser.id },
             });
         }
+
+        const returnedApiKey = deserializeApiKey(user.apiKey) || user.apiKey;
 
         res.json({
             user: {
@@ -224,7 +281,7 @@ router.post('/auth/google', async (req: Request, res: Response) => {
                 tier: user.tier,
                 isAdmin: isAdminEmail(user.email),
             },
-            apiKey: user.apiKey,
+            apiKey: returnedApiKey,
         });
 
     } catch (error: any) {

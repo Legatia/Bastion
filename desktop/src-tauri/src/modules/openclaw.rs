@@ -28,13 +28,19 @@ impl OpenClawState {
 #[tauri::command]
 pub async fn run_openclaw<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    
+    let engine = RuntimeEngine::from_env();
     let is_windows = cfg!(target_os = "windows");
-    let binary_name = if is_windows { "openclaw.bat" } else { "openclaw" };
+    let binary_name = if is_windows {
+        if matches!(engine, RuntimeEngine::NanoClaw) { "nanoclaw.bat" } else { "openclaw.bat" }
+    } else if matches!(engine, RuntimeEngine::NanoClaw) {
+        "nanoclaw"
+    } else {
+        "openclaw"
+    };
     let bin_path = app_dir.join(binary_name);
     
     if !bin_path.exists() {
-        return Err("OpenClaw not installed".to_string());
+        return Err(format!("{} runtime not installed", engine.label()));
     }
     
     // Command::new requires path as string
@@ -70,12 +76,12 @@ pub async fn run_openclaw<R: Runtime>(app: AppHandle<R>) -> Result<String, Strin
             match event {
                 CommandEvent::Stdout(line) => {
                     let log = String::from_utf8_lossy(&line).to_string();
-                    println!("OpenClaw: {}", log);
+                    println!("{}: {}", engine.label(), log);
                     record_event(&app_handle, format!("STDOUT: {}", log));
                 }
                 CommandEvent::Stderr(line) => {
                     let log = String::from_utf8_lossy(&line).to_string();
-                    eprintln!("OpenClaw Err: {}", log);
+                    eprintln!("{} Err: {}", engine.label(), log);
                     record_event(&app_handle, format!("STDERR: {}", log));
                 }
                 _ => {}
@@ -136,6 +142,40 @@ struct InstallProgress {
     percentage: u8,
 }
 
+#[derive(Clone, Copy)]
+enum RuntimeEngine {
+    OpenClaw,
+    NanoClaw,
+}
+
+impl RuntimeEngine {
+    fn from_env() -> Self {
+        match env::var("BASTION_RUNTIME_ENGINE")
+            .unwrap_or_else(|_| "openclaw".to_string())
+            .trim()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "nanoclaw" => RuntimeEngine::NanoClaw,
+            _ => RuntimeEngine::OpenClaw,
+        }
+    }
+
+    fn id(&self) -> &'static str {
+        match self {
+            RuntimeEngine::OpenClaw => "openclaw",
+            RuntimeEngine::NanoClaw => "nanoclaw",
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            RuntimeEngine::OpenClaw => "OpenClaw",
+            RuntimeEngine::NanoClaw => "NanoClaw",
+        }
+    }
+}
+
 #[cfg(not(target_os = "windows"))]
 const DEFAULT_INSTALLER_URL_UNIX: &str = "https://openclaw.ai/install.sh";
 #[cfg(target_os = "windows")]
@@ -163,6 +203,11 @@ pub async fn get_openclaw_status<R: Runtime>(app: AppHandle<R>) -> Result<bool, 
     let state = app.state::<OpenClawState>();
     let guard = state.process_id.lock().map_err(|e| e.to_string())?;
     Ok(guard.is_some())
+}
+
+#[tauri::command]
+pub async fn get_runtime_engine() -> Result<String, String> {
+    Ok(RuntimeEngine::from_env().id().to_string())
 }
 
 fn to_hex(bytes: &[u8]) -> String {
@@ -255,6 +300,25 @@ exit 127
     Ok(())
 }
 
+#[cfg(unix)]
+fn create_unix_launcher_for_command(path: &PathBuf, command: &str, label: &str) -> Result<(), String> {
+    let script = format!(
+        r#"#!/bin/sh
+if command -v {command} >/dev/null 2>&1; then
+  exec {command} "$@"
+fi
+echo "{label} binary not found. Run installer again or fix PATH." >&2
+exit 127
+"#
+    );
+
+    fs::write(path, script).map_err(|e| e.to_string())?;
+    let mut perms = fs::metadata(path).map_err(|e| e.to_string())?.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg(target_os = "windows")]
 fn create_windows_launcher(path: &PathBuf, npm_prefix: Option<&str>) -> Result<(), String> {
     let npm_cmd = npm_prefix
@@ -294,12 +358,31 @@ exit /b 127
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn create_windows_launcher_for_command(path: &PathBuf, command: &str, label: &str) -> Result<(), String> {
+    let script = format!(
+        r#"@echo off
+where {command} >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+  {command} %*
+  exit /b %ERRORLEVEL%
+)
+echo {label} binary not found. Run installer again or fix PATH.
+exit /b 127
+"#
+    );
+
+    fs::write(path, script).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn install_openclaw<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     if !app_dir.exists() {
         fs::create_dir_all(&app_dir).map_err(|e| e.to_string())?;
     }
+    let engine = RuntimeEngine::from_env();
     
     // Helper to emit progress
     let emit_progress = |step: &str, msg: &str, pct: u8| {
@@ -310,11 +393,92 @@ pub async fn install_openclaw<R: Runtime>(app: AppHandle<R>) -> Result<String, S
         });
     };
 
-    emit_progress("init", "Initializing installer...", 10);
+    emit_progress("init", &format!("Initializing {} installer...", engine.label()), 10);
     
     let is_windows = cfg!(target_os = "windows");
-    let binary_name = if is_windows { "openclaw.bat" } else { "openclaw" };
+    let binary_name = if is_windows {
+        if matches!(engine, RuntimeEngine::NanoClaw) { "nanoclaw.bat" } else { "openclaw.bat" }
+    } else if matches!(engine, RuntimeEngine::NanoClaw) {
+        "nanoclaw"
+    } else {
+        "openclaw"
+    };
     let bin_path = app_dir.join(binary_name);
+
+    if matches!(engine, RuntimeEngine::NanoClaw) {
+        emit_progress("install", "Preparing NanoClaw runtime adapter...", 35);
+
+        if let Ok(cmdline) = env::var("NANOCLAW_INSTALL_COMMAND") {
+            if !cmdline.trim().is_empty() {
+                #[cfg(target_os = "windows")]
+                let output = app
+                    .shell()
+                    .command("cmd")
+                    .args(&["/C", &cmdline])
+                    .output()
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                #[cfg(not(target_os = "windows"))]
+                let output = app
+                    .shell()
+                    .command("sh")
+                    .args(&["-c", &cmdline])
+                    .output()
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                if output.status.code().unwrap_or(1) != 0 {
+                    return Err(format!(
+                        "NanoClaw install command failed.\nstdout:\n{}\nstderr:\n{}",
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr)
+                    ));
+                }
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        let runtime_cmd = env::var("NANOCLAW_BIN_WINDOWS").unwrap_or_else(|_| "nanoclaw".to_string());
+        #[cfg(not(target_os = "windows"))]
+        let runtime_cmd = env::var("NANOCLAW_BIN_UNIX").unwrap_or_else(|_| "nanoclaw".to_string());
+
+        emit_progress("verify", "Verifying NanoClaw runtime command...", 65);
+        #[cfg(target_os = "windows")]
+        let runtime_check = app
+            .shell()
+            .command("cmd")
+            .args(&["/C", &format!("where {}", runtime_cmd)])
+            .output()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        #[cfg(not(target_os = "windows"))]
+        let runtime_check = app
+            .shell()
+            .command("sh")
+            .args(&["-c", &format!("command -v {}", runtime_cmd)])
+            .output()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if runtime_check.status.code().unwrap_or(1) != 0 {
+            return Err(format!(
+                "NanoClaw runtime command not found: {}. Set NANOCLAW_BIN_UNIX/NANOCLAW_BIN_WINDOWS or provide NANOCLAW_INSTALL_COMMAND.",
+                runtime_cmd
+            ));
+        }
+
+        emit_progress("configure", "Creating local launcher wrapper...", 78);
+        #[cfg(unix)]
+        create_unix_launcher_for_command(&bin_path, &runtime_cmd, "NanoClaw")?;
+        #[cfg(target_os = "windows")]
+        create_windows_launcher_for_command(&bin_path, &runtime_cmd, "NanoClaw")?;
+
+        emit_progress("done", "NanoClaw runtime adapter ready.", 100);
+        return Ok(bin_path.to_string_lossy().to_string());
+    }
+
     let (allow_unpinned, skip_doctor) = installer_policy();
 
     #[cfg(target_os = "windows")]

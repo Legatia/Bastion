@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { encodeFunctionData, parseAbi, type Hex } from 'viem';
 import { CdpWalletService } from './cdp-wallet-service';
 import { logger } from '../middleware/logger';
+import { prisma } from '../lib/prisma';
 
 const ATTESTATION_ABI = parseAbi([
   'function attestPolicy(bytes32 digest,string userId,string policyId,string eventType) external',
@@ -67,20 +68,6 @@ const CDP_SUPPORTED_EVM_NETWORKS = new Set([
   'arbitrum',
 ]);
 
-type AttestCounterState = {
-  hourKey: string;
-  hourCount: number;
-  dayKey: string;
-  dayCount: number;
-};
-
-const attestCounter: AttestCounterState = {
-  hourKey: '',
-  hourCount: 0,
-  dayKey: '',
-  dayCount: 0,
-};
-
 function getMaxTxPerHour(): number {
   const parsed = Number.parseInt(process.env.ATTEST_MAX_TX_PER_HOUR || '400', 10);
   if (!Number.isFinite(parsed) || parsed < 1) return 400;
@@ -93,32 +80,64 @@ function getMaxTxPerDay(): number {
   return parsed;
 }
 
-function checkAndIncrementAttestBudget(): boolean {
+async function ensureAttestationBudgetTable(): Promise<void> {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS attestation_budget_counters (
+      key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+async function checkAndIncrementAttestBudget(): Promise<boolean> {
   const now = new Date();
   const hourKey = now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
   const dayKey = now.toISOString().slice(0, 10); // YYYY-MM-DD
 
-  if (attestCounter.hourKey !== hourKey) {
-    attestCounter.hourKey = hourKey;
-    attestCounter.hourCount = 0;
-  }
-  if (attestCounter.dayKey !== dayKey) {
-    attestCounter.dayKey = dayKey;
-    attestCounter.dayCount = 0;
-  }
-
   const hourLimit = getMaxTxPerHour();
   const dayLimit = getMaxTxPerDay();
-  if (attestCounter.hourCount >= hourLimit || attestCounter.dayCount >= dayLimit) {
+
+  try {
+    await ensureAttestationBudgetTable();
+    await prisma.$transaction(async (tx) => {
+      const hourRows = await tx.$queryRaw<{ count: number }[]>`
+        INSERT INTO attestation_budget_counters (key, count, updated_at)
+        VALUES (${`hour:${hourKey}`}, 1, NOW())
+        ON CONFLICT (key) DO UPDATE
+        SET count = attestation_budget_counters.count + 1, updated_at = NOW()
+        WHERE attestation_budget_counters.count < ${hourLimit}
+        RETURNING count
+      `;
+      if (hourRows.length === 0) {
+        throw new Error('HOUR_LIMIT_REACHED');
+      }
+
+      const dayRows = await tx.$queryRaw<{ count: number }[]>`
+        INSERT INTO attestation_budget_counters (key, count, updated_at)
+        VALUES (${`day:${dayKey}`}, 1, NOW())
+        ON CONFLICT (key) DO UPDATE
+        SET count = attestation_budget_counters.count + 1, updated_at = NOW()
+        WHERE attestation_budget_counters.count < ${dayLimit}
+        RETURNING count
+      `;
+      if (dayRows.length === 0) {
+        throw new Error('DAY_LIMIT_REACHED');
+      }
+    });
+    return true;
+  } catch (error: any) {
+    if (error?.message === 'HOUR_LIMIT_REACHED' || error?.message === 'DAY_LIMIT_REACHED') {
+      return false;
+    }
+    logger.warn('[ATTEST] Budget counter storage unavailable, falling back to deny-safe budget mode', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
-
-  attestCounter.hourCount += 1;
-  attestCounter.dayCount += 1;
-  return true;
 }
 
-function shouldSendAttestation(): { ok: boolean; network?: string; reason?: string } {
+async function shouldSendAttestation(): Promise<{ ok: boolean; network?: string; reason?: string }> {
   const network = getAttestationNetwork();
   if (!CDP_SUPPORTED_EVM_NETWORKS.has(network)) {
     return {
@@ -128,7 +147,7 @@ function shouldSendAttestation(): { ok: boolean; network?: string; reason?: stri
     };
   }
 
-  if (!checkAndIncrementAttestBudget()) {
+  if (!(await checkAndIncrementAttestBudget())) {
     return {
       ok: false,
       network,
@@ -183,7 +202,7 @@ export class OnchainAttestationService {
   }): Promise<string | null> {
     const contractAddress = getContractAddress();
     if (!contractAddress) return null;
-    const sendCheck = shouldSendAttestation();
+    const sendCheck = await shouldSendAttestation();
     if (!sendCheck.ok) {
       logger.warn('[ATTEST] Policy attestation skipped', {
         policyId: input.policyId,
@@ -233,7 +252,7 @@ export class OnchainAttestationService {
     const contractAddress = getContractAddress();
     if (!contractAddress) return null;
     if (!shouldAnchorDecision(input)) return null;
-    const sendCheck = shouldSendAttestation();
+    const sendCheck = await shouldSendAttestation();
     if (!sendCheck.ok) {
       logger.warn('[ATTEST] Decision attestation skipped', {
         logId: input.logId,
@@ -295,7 +314,7 @@ export class OnchainAttestationService {
     const contractAddress = getContractAddress();
     if (!contractAddress) return null;
     if (!this.isHealthCheckpointEnabled()) return null;
-    const sendCheck = shouldSendAttestation();
+    const sendCheck = await shouldSendAttestation();
     if (!sendCheck.ok) {
       logger.warn('[ATTEST] Health checkpoint skipped', {
         agentId: input.agentId,

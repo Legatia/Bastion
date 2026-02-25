@@ -3,6 +3,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { logger } from './logger';
+import crypto from 'crypto';
 
 // Extend Express Request to include user
 declare global {
@@ -39,9 +40,18 @@ export async function authenticateApiKey(
       });
     }
 
-    // Look up user by API key
-    const user = await prisma.user.findUnique({
-      where: { apiKey: apiKey as string },
+    const rawApiKey = apiKey as string;
+    const key = crypto.createHash('sha256').update(`${process.env.JWT_SECRET || ''}:api-key:v2`).digest();
+    const apiKeyHash = crypto.createHmac('sha256', key).update(rawApiKey).digest('hex');
+
+    // Look up user by API key (legacy plaintext OR v2 hashed+encrypted envelope)
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { apiKey: rawApiKey },
+          { apiKey: { startsWith: `bstv2.${apiKeyHash}.` } },
+        ],
+      },
       select: {
         id: true,
         email: true,
@@ -59,7 +69,7 @@ export async function authenticateApiKey(
     }
 
     // Attach user to request
-    req.user = user;
+    req.user = { ...user, apiKey: rawApiKey };
     next();
   } catch (error) {
     logger.error('[AUTH] Authentication error:', { error: error instanceof Error ? error.message : error });

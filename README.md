@@ -255,12 +255,16 @@ Desktop runtime installer overrides (optional, for Tauri app runtime installs):
 
 | Variable | Required | Description |
 |----------|----------|-------------|
+| `BASTION_RUNTIME_ENGINE` | Optional | Runtime adapter to use in desktop app (`openclaw` default, `nanoclaw` optional) |
 | `OPENCLAW_INSTALLER_URL_UNIX` | Optional | Override installer URL on Unix-like systems (default `https://openclaw.ai/install.sh`) |
 | `OPENCLAW_INSTALLER_URL_WINDOWS` | Optional | Override installer URL on Windows (default `https://openclaw.ai/install.ps1`) |
 | `OPENCLAW_INSTALLER_SHA256_UNIX` | Recommended | Expected SHA-256 for Unix installer script |
 | `OPENCLAW_INSTALLER_SHA256_WINDOWS` | Recommended | Expected SHA-256 for Windows installer script |
 | `OPENCLAW_INSTALLER_ALLOW_UNPINNED` | Optional | Allow installer run without checksum pinning (`true` by default; set `false` to enforce pinning) |
 | `OPENCLAW_INSTALLER_SKIP_DOCTOR` | Optional | Skip `openclaw doctor` post-install health check (`false` by default) |
+| `NANOCLAW_INSTALL_COMMAND` | Optional | Shell command used to install NanoClaw when `BASTION_RUNTIME_ENGINE=nanoclaw` |
+| `NANOCLAW_BIN_UNIX` | Optional | Unix command name/path for NanoClaw launcher wrapper (default `nanoclaw`) |
+| `NANOCLAW_BIN_WINDOWS` | Optional | Windows command name/path for NanoClaw launcher wrapper (default `nanoclaw`) |
 
 ---
 
